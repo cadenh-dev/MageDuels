@@ -41,10 +41,12 @@ func _check_spell(wand_id: String, wand: Dictionary, element: String, form: Stri
 		_check(label + " overcast shield > plain", float(over["shield"]) > float(plain["shield"]), "%.2f -> %.2f" % [float(plain["shield"]), float(over["shield"])])
 	_check(label + " overcast full mana", is_equal_approx(float(over["mana"]), float(plain["mana"])), "%.2f vs %.2f" % [float(over["mana"]), float(plain["mana"])])
 	_check(label + " finite overcast", _finite(over), str(over))
+	if modifier == "track":
+		_check(label + " tracking homes", bool(plain.get("homing", false)), str(plain.get("homing", false)))
 
 
 func _finite(stats: Dictionary) -> bool:
-	for key in ["damage", "mana", "cooldown", "speed", "knockback", "radius", "shield"]:
+	for key in ["damage", "mana", "cooldown", "speed", "knockback", "radius", "shield", "homing_strength"]:
 		if not is_finite(float(stats.get(key, 0.0))):
 			return false
 	return true

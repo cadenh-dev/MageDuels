@@ -14,7 +14,7 @@ overcast + perfect release, AI archetypes, audio, controller support, web export
 - **Camera modes.** `C` / right-stick click toggles `ARENA` (fixed duel camera)
   and `FOLLOW` (centered on the player). Arena duels default to fixed.
 - **Aegis** (`TUTELA`) — a personal shield form. Absorbs 35 damage for 3s,
-  overcast raises it to 52.5. The existing **Ward** (`MURUS`) still blocks
+  typed overcast raises it to ~64. The existing **Ward** (`MURUS`) still blocks
   projectiles and beams.
 - **Arena 2.0** — Apprentice Wand for both duelists, first to 3, and a
   loser-first boon draft after every round. The Arena flow now starts directly

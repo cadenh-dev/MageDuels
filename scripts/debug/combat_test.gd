@@ -112,6 +112,30 @@ func run() -> int:
 	await _wait(0.2)
 	_check("nova hits nearby rival", e.hp < nova_before, "hp %.1f -> %.1f" % [nova_before, e.hp])
 
+	# --- Tracking modifier ------------------------------------------------
+	e.global_position = Vector3(6, 0, 0)
+	p.global_position = Vector3(-6, 0, 0)
+	e.hp = e.max_hp
+	p.hp = p.max_hp
+	var track := SpellDef.new("fire", "bolt", "track")
+	var track_stats := track.resolved_stats(p.wand, false)
+	_check("tracking modifier flags homing", bool(track_stats.get("homing", false)))
+	_check("tracking has turn strength", float(track_stats.get("homing_strength", 0.0)) > 3.0)
+	var count_before := arena.projectiles.get_child_count()
+	arena.spawn_spell(p, track, track_stats, p.get_muzzle_position(), Vector3.BACK)
+	await _wait(0.05)
+	var proj: SpellProjectile = null
+	if arena.projectiles.get_child_count() > count_before:
+		proj = arena.projectiles.get_child(arena.projectiles.get_child_count() - 1)
+	_check("tracking projectile spawned", proj != null)
+	if proj != null:
+		var away := (e.global_position - proj.global_position).normalized()
+		var before_dot := proj.direction.dot(away)
+		await _wait(0.25)
+		away = (e.global_position - proj.global_position).normalized()
+		_check("tracking curves toward rival", proj.direction.dot(away) > before_dot,
+			"dot %.3f -> %.3f" % [before_dot, proj.direction.dot(away)])
+
 	# --- Chant / overcast -------------------------------------------------
 	e.global_position = Vector3(6, 0, 0)
 	p.global_position = Vector3(-6, 0, 0)
@@ -127,7 +151,7 @@ func run() -> int:
 	_check("typing completes incantation", p.chant_text == incant, "typed '%s'" % p.chant_text)
 	p.chant_finish()
 	_check("windup blocks instant finish", p.chanting, "still chanting")
-	await _wait(1.0)
+	await _wait(Wizard.CHANT_MIN_TIME + 0.1)
 	var e_hp_before := e.hp
 	p.chant_finish()
 	var spent := mana_before - p.mana

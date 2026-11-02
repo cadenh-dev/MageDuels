@@ -16,9 +16,11 @@ signal shield_changed(wizard, shield_hp, shield_max)
 
 const ARENA_RADIUS := 8.1
 const HIT_HEIGHT := 0.9
-const CHANT_MIN_TIME := 0.9
-const CHANT_ASSIST_TIME := 1.4
-const CHANT_PERFECT_END := 1.2
+## Charging a typed overcast is deliberately committal: longer than a quickcast
+## window, long enough to be seen and interrupted.
+const CHANT_MIN_TIME := 1.6
+const CHANT_ASSIST_TIME := 2.3
+const CHANT_PERFECT_END := 1.95
 
 var wizard_name := "Wizard"
 var is_player := false
@@ -469,7 +471,7 @@ func swap_page() -> void:
 		_staff_light.light_energy = 2.4
 
 
-func can_cast(slot: int, overcast: bool = false) -> Dictionary:
+func can_cast(slot: int, overcast: bool = false, overcast_mult: float = SpellDef.OVERCAST_MULT) -> Dictionary:
 	if not alive:
 		return {"ok": false, "reason": "You are down."}
 	if stun_time > 0.0:
@@ -479,7 +481,7 @@ func can_cast(slot: int, overcast: bool = false) -> Dictionary:
 		return {"ok": false, "reason": "No spell in that slot."}
 	if cooldowns[slot] > 0.001:
 		return {"ok": false, "reason": "Recharging."}
-	var stats := spell.resolved_stats(wand, overcast)
+	var stats := spell.resolved_stats(wand, overcast, overcast_mult)
 	if mana < float(stats["mana"]):
 		return {"ok": false, "reason": "Not enough mana."}
 	return {"ok": true, "spell": spell, "stats": stats}
@@ -501,7 +503,8 @@ func quickcast(slot: int) -> bool:
 func begin_chant(slot: int, p_assisted: bool = false) -> bool:
 	if chanting or not alive or not input_enabled:
 		return false
-	var check := can_cast(slot, true)
+	var mult := SpellDef.ASSIST_OVERCAST_MULT if p_assisted else SpellDef.OVERCAST_MULT
+	var check := can_cast(slot, true, mult)
 	if not bool(check["ok"]):
 		cast_blocked.emit(self, str(check["reason"]))
 		return false
@@ -512,6 +515,9 @@ func begin_chant(slot: int, p_assisted: bool = false) -> bool:
 	chant_typos = 0
 	chant_elapsed = 0.0
 	selected_slot = slot
+	var spell: SpellDef = check["spell"]
+	if _chant_label != null:
+		_chant_label.text = spell.display_name().to_upper()
 	_set_chant_fx(true)
 	Fx.burst(get_parent(), global_position + Vector3.UP * 1.55, wand.get("color", Color.WHITE), 14, 3.5, 0.06, 0.45)
 	chant_changed.emit(self, true)
@@ -557,7 +563,7 @@ func chant_finish() -> void:
 	if chant_text != spell.incantation_compact():
 		cancel_chant()
 		return
-	var check := can_cast(chant_slot, true)
+	var check := can_cast(chant_slot, true, SpellDef.OVERCAST_MULT)
 	if not bool(check["ok"]):
 		cast_blocked.emit(self, str(check["reason"]))
 		cancel_chant()
@@ -566,14 +572,24 @@ func chant_finish() -> void:
 
 
 func chant_progress() -> float:
-	var span := CHANT_ASSIST_TIME if assisted_chant else CHANT_MIN_TIME
+	var span := chant_time_target()
 	return clampf(chant_elapsed / span, 0.0, 1.0)
+
+
+## How long this chant needs to hold before it can be unleashed.
+func chant_time_target() -> float:
+	return CHANT_ASSIST_TIME if assisted_chant else CHANT_MIN_TIME
+
+
+## The assisted hold's perfect-release window, as a (start, end) pair.
+func perfect_window() -> Vector2:
+	return Vector2(CHANT_MIN_TIME, CHANT_PERFECT_END)
 
 
 func _finish_assisted() -> void:
 	if not chanting:
 		return
-	var check := can_cast(chant_slot, true)
+	var check := can_cast(chant_slot, true, SpellDef.ASSIST_OVERCAST_MULT)
 	if not bool(check["ok"]):
 		cast_blocked.emit(self, str(check["reason"]))
 		cancel_chant()
@@ -581,8 +597,9 @@ func _finish_assisted() -> void:
 	_do_cast(chant_slot, true, check, false)
 
 
-## Release the assisted hold. Releasing before 0.9s cancels; releasing in the
-## 0.9-1.2s gold window is a perfect cast; releasing later still casts, but slower.
+## Release the assisted hold. Releasing before CHANT_MIN_TIME cancels; releasing
+## in the CHANT_MIN_TIME..CHANT_PERFECT_END gold window is a perfect cast;
+## releasing later still casts, but slower.
 func assist_release() -> bool:
 	if not chanting or not assisted_chant:
 		return false
@@ -590,7 +607,7 @@ func assist_release() -> bool:
 		cancel_chant()
 		return false
 	var perfect := chant_elapsed <= CHANT_PERFECT_END
-	var check := can_cast(chant_slot, true)
+	var check := can_cast(chant_slot, true, SpellDef.ASSIST_OVERCAST_MULT)
 	if not bool(check["ok"]):
 		cast_blocked.emit(self, str(check["reason"]))
 		cancel_chant()
@@ -614,6 +631,10 @@ func cancel_chant() -> void:
 func _do_cast(slot: int, overcast: bool, check: Dictionary, perfect: bool = false) -> void:
 	var spell: SpellDef = check["spell"]
 	var stats: Dictionary = check["stats"]
+	if perfect and overcast:
+		var bonus := 1.0 + SpellDef.PERFECT_DAMAGE_BONUS
+		stats["damage"] = snappedf(float(stats["damage"]) * bonus, 0.1)
+		stats["shield"] = snappedf(float(stats["shield"]) * bonus, 0.1)
 	stats["perfect"] = perfect
 	mana = maxf(0.0, mana - float(stats["mana"]))
 	cooldowns[slot] = float(stats["cooldown"])

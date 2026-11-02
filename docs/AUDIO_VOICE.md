@@ -9,7 +9,7 @@ Files:
 
 | File | Role |
 | --- | --- |
-| `scripts/audio/voice_synth.gd` | Offline voice bakery (new). Two profiles, 16 streams each. |
+| `scripts/audio/voice_synth.gd` | Offline voice bakery. Two profiles (16 streams each) plus 17 shared rune-word callouts. |
 | `scripts/core/audio.gd` | Bakes the bank once, owns the Voice bus/pool, maps gameplay events to cues. |
 | `scripts/audio/synth.gd` | Existing SFX/music bakery; also supplies the shared 16-bit encoder and `baked_count`. |
 
@@ -19,7 +19,8 @@ Files:
 
 **Chosen: bake once at startup.** The autoload calls
 `VoiceSynth.bake_voice()` exactly twice in `_bake_bank()` — once for the player
-profile and once for the rival. After `_ready()` the voice path only changes
+profile and once for the rival — and `VoiceSynth.bake_callouts()` once for the
+shared rune-word bank. After `_ready()` the voice path only changes
 `pitch_scale`, `volume_db` and which finished stream a player holds. There is no
 `AudioStreamGenerator` anywhere in the project and no synthesis in `_process()`.
 
@@ -34,21 +35,22 @@ Why not generate on demand:
 - `Synth.baked_count` gives a hard proof (used by `--audio-selftest`) that no
   stream is encoded after startup.
 
-Measured in this worktree on the cold headless run (includes existing SFX and
-music baking in the total):
+Measured in this worktree on the latest headless run (warm file cache, includes
+existing SFX and music baking in the total):
 
 | Run | Total bake | Voice portion | Bank |
 | --- | --- | --- | --- |
-| `--audio-selftest` | 7 317 ms | 1 312 ms | 32 streams / 351.4 KiB |
-| `--test` | 6 665 ms | 1 397 ms | 32 streams / 351 KiB |
+| `--audio-selftest` | 974 ms | 262 ms | 49 streams / 684.6 KiB |
 
-Timings vary by a few hundred milliseconds between cold and warm runs; the voice
-share is consistently about 1.3 seconds on the project's target desktop.
+Timings vary by a few hundred milliseconds between cold and warm runs. The
+callout bank adds ~333 KiB and roughly 0.25–0.5 s to the voice bake.
 
-The voice bank is 176 KiB per profile: 12 ladder rungs (~0.21 s each), a 0.30 s
+The voice bank is ~180 KiB per profile: 12 ladder rungs (~0.21 s each), a 0.30 s
 breath onset, a 0.74 s resolve stab, a 0.32 s typo fail and a 0.20 s interruption
-cut. All streams are 22 050 Hz, mono, 16-bit PCM, peak-normalised to 0.55–0.68
-so the bus has headroom before the Master limiter.
+cut. A third shared bank holds one ~0.4 s callout per rune word (6 elements, 6
+forms, 5 modifiers), ~333 KiB in total. All streams are 22 050 Hz, mono, 16-bit
+PCM, peak-normalised to 0.55–0.68 so the bus has headroom before the Master
+limiter.
 
 ---
 
@@ -85,6 +87,16 @@ Ladder contour: A minor pentatonic over 12 rungs. Player A2 → A4
 (82.5 → ~392 Hz, formant scale 0.86). The rival also gets 0.34 vs 0.42 breath,
 4.4 vs 5.1 Hz vibrato, and more drive.
 
+### Spell-name callouts
+
+`VoiceSynth._speak_word()` renders each rune word as 1–3 short formant syllables
+using a rough syllabifier: each vowel group takes its F1/F2/F3 shape, the
+preceding consonant cluster becomes the existing noise onset, and pitch steps
+down 10% per syllable. This is deliberately a **sung rune-language callout**, not
+English text-to-speech; it is there so a cast audibly announces `IGNA MITT` or
+`GLACIA RUPTA` instead of sounding like every other bolt. Only the player profile
+is baked; the rival replays the same streams at `pitch_scale = 0.8`.
+
 ---
 
 ## Integration
@@ -98,6 +110,7 @@ script was changed.
 | `chant_changed(wizard, true)` (real start, not a typo reset) | `onset` breath |
 | Each newly typed correct character (`wizard.chant_text.length()`) | Next baked ladder rung, both duelists |
 | Successful cast (`cast_fired` within 250 ms of a chant ending) | `resolve` stab (plus the existing `chant_resolve` bell) |
+| Every cast (`cast_fired`) | Spell-name callout: element word + form word + optional modifier word on a dedicated Voice player. The rival's copy is pitch-shifted down and skipped if the player just cast. |
 | Typo (`wizard.chant_typos` increases) | `fail` descending buzz |
 | `chant_interrupted(wizard)` | `cut` glottal choke |
 
@@ -125,7 +138,9 @@ Master  -> AudioEffectHardLimiter (ceiling -0.6 dB, release 0.12 s, unchanged)
   −3 dB / 1400 Hz lowpass, both released over 0.4 s. The player keeps the deeper
   duck so typed letters stay readable.
 - Eight dedicated Voice players are separate from the 12 SFX players, so a
-  resolve stab cannot steal an impact, and SFX cannot mute a ladder rung.
+  resolve stab cannot steal an impact, and SFX cannot mute a ladder rung. A
+  ninth `SpellCallout` player queues the name words one at a time; a new cast
+  replaces the queue so fast quickcasts do not pile up.
 - Baked peaks are 0.55–0.68; the Master limiter is the final safety net. In the
   self-test the bank measured RMS 0.121–0.337 (average 0.219), peak 0.68, so no
   stream is silent or clipped before it reaches the bus.
@@ -159,10 +174,11 @@ godot --headless --path . -- --voice-selftest
 Expected voice section (cold headless worktree):
 
 ```
-voice bank     32 streams 351.4 KiB bake=1312 ms rms=0.121..0.337 avg=0.219 peak=0.68 ok
+voice bank+callouts 49 streams 684.6 KiB bake=262 ms rms=0.121..0.337 avg=0.203 peak=0.68 ok
+callout bank   17 rune words baked
 voice ladder  110.0 Hz -> 523.3 Hz (12 rungs, vowels A-E-I-O-U)
 voice bus      -4.5 dB, 2 effects (distortion + lowpass) ok
-no synthesis after _ready (61 baked streams)
+no synthesis after _ready (78 baked streams)
 ```
 
 Listening notes:
@@ -174,6 +190,9 @@ Listening notes:
   the bus distortion drive before changing the formants.
 - The resolve stab is a root/fifth/octave chord and should feel like the payoff
   after the last letter, not a separate instrument.
+- A spell callout should sound like two or three clipped syllables of the same
+  voice, pitched above the resolve stab. If it reads as speech, that is fine; if
+  it reads as a second melody, shorten the syllables or raise the gap.
 - The typo `fail` is deliberately ugly (descending, choked) and the interruption
   `cut` is shorter and noisier so the player can tell "wrong letter" from
   "I got hit".

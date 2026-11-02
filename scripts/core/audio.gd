@@ -67,6 +67,14 @@ var _voice_bytes := 0
 var _voice_bake_ms := 0
 var _rival_chanting := false
 
+## Baked per-word callouts ("IGNA", "MITT") played in sequence on cast.
+var _callouts: Dictionary = {}
+var _callout_player: AudioStreamPlayer
+var _callout_queue: Array[AudioStreamWAV] = []
+var _callout_volume_db := 0.0
+var _callout_pitch := 1.0
+var _last_player_callout_ms := -1000
+
 var _pool: Array[AudioStreamPlayer] = []
 var _pool_cursor := 0
 var _music_players: Array[AudioStreamPlayer] = []
@@ -97,6 +105,7 @@ func _ready() -> void:
 	_load_master_volume()
 	_build_pool()
 	_build_voice_pool()
+	_build_callout_player()
 	_wire_ui()
 	_last_round_index = _game_int("round_index", 0)
 	_last_player_score = _game_int("player_score", 0)
@@ -112,9 +121,9 @@ func prepare() -> void:
 	_bake_bank()
 	_build_music_players()
 	_start_music()
-	print("AUDIO: %d streams ready (%d chant notes, %d music stems, %d voice streams)" % [
-		_streams.size() + _notes.size() + _music_streams.size() + _voice_stream_count(),
-		_notes.size(), _music_streams.size(), _voice_stream_count()
+	print("AUDIO: %d streams ready (%d chant notes, %d music stems, %d voice streams, %d callouts)" % [
+		_streams.size() + _notes.size() + _music_streams.size() + _voice_stream_count() + _callouts.size(),
+		_notes.size(), _music_streams.size(), _voice_stream_count(), _callouts.size()
 	])
 
 
@@ -140,6 +149,9 @@ func _exit_tree() -> void:
 	for p in _voice_pool:
 		p.stop()
 		p.stream = null
+	if _callout_player != null:
+		_callout_player.stop()
+		_callout_player.stream = null
 	for p in _music_players:
 		p.stop()
 		p.stream = null
@@ -147,6 +159,7 @@ func _exit_tree() -> void:
 	_notes.clear()
 	_music_streams.clear()
 	_voices.clear()
+	_callouts.clear()
 	# AudioServer releases a stopped playback on the audio thread. Without a
 	# short drain the last few sounds are still referenced when ObjectDB is
 	# checked at shutdown, which prints a spurious "instances were leaked"
@@ -185,6 +198,50 @@ func play_note(pitch_index: int, is_player: bool = true) -> void:
 ## is_player selects the profile; the rival is baked darker and mixed quieter.
 func play_voice(cue: String, is_player: bool = true, volume_db: float = 0.0) -> void:
 	_play_voice_cue(cue, is_player, 0, volume_db)
+
+
+## Speak the spell's rune name as it is cast: element word, form word, then the
+## modifier word. Streams are baked at startup; this only queues playback.
+## The newest cast wins, so a fast duel never builds a backlog of names.
+func play_spell_name(spell: SpellDef, is_player: bool = true, volume_db: float = 0.0) -> void:
+	if spell == null or _callouts.is_empty() or _callout_player == null:
+		return
+	var words: Array[String] = [
+		str(spell.element_data().get("word", "")),
+		str(spell.form_data().get("word", "")),
+	]
+	if spell.modifier != "":
+		words.append(str(spell.modifier_data().get("word", "")))
+	var streams: Array[AudioStreamWAV] = []
+	for word in words:
+		var stream: AudioStreamWAV = _callouts.get(word.to_upper(), null)
+		if stream != null:
+			streams.append(stream)
+	if streams.is_empty():
+		return
+	_callout_queue = streams
+	_callout_volume_db = volume_db + (0.0 if is_player else RIVAL_VOICE_TRIM_DB)
+	_callout_pitch = 1.0 if is_player else 0.80
+	if is_player:
+		_last_player_callout_ms = Time.get_ticks_msec()
+	_callout_player.stop()
+	_pump_callout()
+
+
+func _pump_callout() -> void:
+	if _callout_queue.is_empty() or _callout_player == null:
+		return
+	var stream: AudioStreamWAV = _callout_queue.pop_front()
+	_callout_player.stream = stream
+	_callout_player.pitch_scale = _callout_pitch * randf_range(0.995, 1.005)
+	_callout_player.volume_db = _callout_volume_db
+	_callout_player.play()
+
+
+func _on_callout_finished() -> void:
+	if _callout_queue.is_empty():
+		return
+	_pump_callout()
 
 
 ## Choose a music tier. 0 = pad, 1 = +pulse, 2 = +lead, 3 = all-out.
@@ -286,14 +343,29 @@ func _bake_bank() -> void:
 	_voices.clear()
 	_voices[VoiceSynthLib.VOICE_PLAYER] = VoiceSynthLib.bake_voice(VoiceSynthLib.VOICE_PLAYER)
 	_voices[VoiceSynthLib.VOICE_RIVAL] = VoiceSynthLib.bake_voice(VoiceSynthLib.VOICE_RIVAL)
+
+	# Cast callouts: one short utterance per rune word. The rival reuses these
+	# streams at a lower pitch, so only one set is baked.
+	_callouts = VoiceSynthLib.bake_callouts(_callout_words())
 	_voice_bake_ms = Time.get_ticks_msec() - voice_t0
 	_voice_bytes = _voice_memory_bytes()
 
 	var total_ms := Time.get_ticks_msec() - t0
 	print("AUDIO: baked in %d ms (voice %d ms)" % [total_ms, _voice_bake_ms])
-	print("AUDIO: voice bank %d streams, %d KiB (%.0f KiB per profile)" % [
-		_voice_stream_count(), _voice_bytes / 1024, float(_voice_bytes) / 2048.0
+	print("AUDIO: voice bank %d streams + %d callouts, %d KiB" % [
+		_voice_stream_count(), _callouts.size(), _voice_bytes / 1024
 	])
+
+
+func _callout_words() -> Array:
+	var words: Array = []
+	for id in SpellData.element_ids():
+		words.append(str(SpellData.ELEMENTS[id].get("word", "")))
+	for id in SpellData.form_ids():
+		words.append(str(SpellData.FORMS[id].get("word", "")))
+	for id in SpellData.modifier_ids():
+		words.append(str(SpellData.MODIFIERS[id].get("word", "")))
+	return words
 
 
 func _build_pool() -> void:
@@ -316,6 +388,17 @@ func _build_voice_pool() -> void:
 		p.process_mode = Node.PROCESS_MODE_ALWAYS
 		add_child(p)
 		_voice_pool.append(p)
+
+
+func _build_callout_player() -> void:
+	# One dedicated player: spell names are queued word-by-word and the newest
+	# cast replaces the previous name instead of stacking with it.
+	_callout_player = AudioStreamPlayer.new()
+	_callout_player.name = "SpellCallout"
+	_callout_player.bus = "Voice"
+	_callout_player.process_mode = Node.PROCESS_MODE_ALWAYS
+	_callout_player.finished.connect(_on_callout_finished)
+	add_child(_callout_player)
 
 
 func _build_music_players() -> void:
@@ -599,10 +682,12 @@ func _poll_wizard(node: Node, st: Dictionary) -> void:
 		st["chant_len"] = typed
 
 
-func _on_cast_fired(caster: Node, spell: Variant, _stats: Dictionary, _origin: Vector3, _direction: Vector3) -> void:
+func _on_cast_fired(caster: Node, spell: Variant, stats: Dictionary, _origin: Vector3, _direction: Vector3) -> void:
 	var element := "arcane"
-	if spell != null:
-		element = str(spell.element)
+	var spell_def: SpellDef = null
+	if spell is SpellDef:
+		spell_def = spell
+		element = spell_def.element
 	var id := caster.get_instance_id()
 	var resolved := false
 	if _wizards.has(id):
@@ -612,6 +697,14 @@ func _on_cast_fired(caster: Node, spell: Variant, _stats: Dictionary, _origin: V
 		play("chant_resolve", "SFX", -4.0)
 		play_voice("resolve", bool(caster.is_player), 0.0 if bool(caster.is_player) else -3.0)
 	play_cast(element)
+	if spell_def == null:
+		return
+	var is_player := bool(caster.is_player)
+	if is_player:
+		play_spell_name(spell_def, true, -1.0 if bool(stats.get("overcast", false)) else -3.0)
+	elif Time.get_ticks_msec() - _last_player_callout_ms > 700:
+		# Keep the rival's name audible but never talk over the player's cast.
+		play_spell_name(spell_def, false, -3.0)
 
 
 func _on_damaged(_wizard: Node, amount: float) -> void:
@@ -809,6 +902,13 @@ func _warm_streams() -> void:
 			vox.stream = stream
 			vox.play()
 			await get_tree().process_frame
+	for word in _callouts:
+		var callout: AudioStreamWAV = _callouts[word]
+		if callout == null:
+			continue
+		vox.stream = callout
+		vox.play()
+		await get_tree().process_frame
 
 	sfx.stop()
 	sfx.stream = null
@@ -897,14 +997,15 @@ func _run_selftest() -> void:
 			failures += 1
 	var voice_avg := voice_rms_sum / maxf(1.0, float(voice_streams.size()))
 	var voice_status := "ok" if voice_bad == 0 else "BAD"
-	print("  voice bank     %d streams %4.1f KiB bake=%d ms rms=%4.3f..%4.3f avg=%4.3f peak=%4.2f %s" % [
+	print("  voice bank+callouts %d streams %4.1f KiB bake=%d ms rms=%4.3f..%4.3f avg=%4.3f peak=%4.2f %s" % [
 		voice_streams.size(), float(voice_bytes) / 1024.0, _voice_bake_ms,
 		voice_rms_min, voice_rms_max, voice_avg, voice_peak_max, voice_status,
 	])
-	var expected_voice := (VoiceSynthLib.LADDER_STEPS + 4) * 2
+	var expected_voice := (VoiceSynthLib.LADDER_STEPS + 4) * 2 + _callouts.size()
 	if voice_streams.size() != expected_voice:
 		print("  BAD voice stream count %d (expected %d)" % [voice_streams.size(), expected_voice])
 		failures += 1
+	print("  callout bank   %d rune words baked" % _callouts.size())
 	for i in range(1, VoiceSynthLib.LADDER_STEPS):
 		if VoiceSynthLib.ladder_frequency(i) <= VoiceSynthLib.ladder_frequency(i - 1):
 			print("  BAD voice ladder is not rising at %d" % i)
@@ -937,6 +1038,8 @@ func _run_selftest() -> void:
 	for cue in VOICE_CUES:
 		play_voice(cue, true)
 		play_voice(cue, false)
+	play_spell_name(SpellDef.new("fire", "bolt", "track"), true)
+	play_spell_name(SpellDef.new("fire", "bolt", "track"), false)
 	set_intensity(3)
 	set_chanting(true)
 	await get_tree().create_timer(0.2).timeout
@@ -956,6 +1059,9 @@ func _run_selftest() -> void:
 	for p in _voice_pool:
 		p.stop()
 		p.stream = null
+	if _callout_player != null:
+		_callout_player.stop()
+		_callout_player.stream = null
 	for p in _music_players:
 		p.stop()
 		p.stream = null
@@ -990,6 +1096,8 @@ func _voice_streams() -> Array[AudioStreamWAV]:
 		out.append(resolve)
 		out.append(fail)
 		out.append(cut)
+	for word in _callouts:
+		out.append(_callouts[word])
 	return out
 
 

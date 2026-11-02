@@ -182,6 +182,18 @@ var MODIFIERS: Dictionary = {
 		"pierce": 1,
 		"desc": "Passes through one target",
 	},
+	"track": {
+		"name": "Track",
+		"word": "SEQUI",
+		"prefix": "Seeking",
+		"damage_mult": 0.9,
+		"cost_mult": 1.15,
+		"cooldown_mult": 1.05,
+		"homing": true,
+		"homing_strength": 4.8,
+		"desc": "Every shot curves toward the rival",
+		"note": "All projectiles home in",
+	},
 }
 
 var WANDS: Dictionary = {
@@ -274,6 +286,7 @@ var CARDS: Array = [
 	{"id": "rune_nova", "name": "Ember Nova", "desc": "Page B slot 4 becomes a heavy fire nova", "kind": "spell", "element": "fire", "form": "nova", "modifier": "heavy", "color": Color("ff6b35")},
 	{"id": "rune_aegis", "name": "Glacial Aegis", "desc": "Page B slot 4 becomes a frost Aegis", "kind": "spell", "element": "frost", "form": "aegis", "modifier": "", "color": Color("74dcff")},
 	{"id": "rune_lance", "name": "Void Lance", "desc": "Page B slot 4 becomes a piercing void beam", "kind": "spell", "element": "void", "form": "beam", "modifier": "pierce", "color": Color("ff4d9d")},
+	{"id": "rune_seeker", "name": "Seeker Bolt", "desc": "Page B slot 4 becomes a tracking fire bolt", "kind": "spell", "element": "fire", "form": "bolt", "modifier": "track", "color": Color("ff9e5c")},
 ]
 
 
@@ -302,7 +315,7 @@ func form_ids() -> Array[String]:
 
 
 func modifier_ids() -> Array[String]:
-	return ["", "split", "heavy", "quick", "pierce"]
+	return ["", "split", "heavy", "quick", "pierce", "track"]
 
 
 func wand(wand_id: String) -> Dictionary:

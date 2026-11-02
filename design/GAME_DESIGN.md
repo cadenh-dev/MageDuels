@@ -31,7 +31,7 @@ Shift your spellbook. Shift your feet. Shift the duel.
 |---|---|---|
 | Health | 100 | No regeneration during a round |
 | Mana | 100 (wand-modified) | Regenerates ~12/s |
-| Overcast | +80% power, full mana | Requires a 0.9s hold and a completed incantation; direct damage breaks it |
+| Overcast | Typed ×2.4 damage, assisted ×1.9, full mana | Requires a 1.6s typed hold (2.3s assisted) and a completed incantation; direct damage breaks it |
 
 ### Controls
 
@@ -42,7 +42,7 @@ Shift your spellbook. Shift your feet. Shift the duel.
 | 1–4 | Quickcast spell in that slot (weak, full cost) |
 | Space | Begin chanting the last-selected spell |
 | Type + Enter | Complete the incantation → Overcast |
-| F / RMB / LT (hold) | Assisted overcast — 1.4s, no typing |
+| F / RMB / LT (hold) | Assisted overcast — 2.3s, no typing, ×1.9 damage |
 | Mouse wheel | Cycle selected spell slot |
 | Shift / RB | Swap spell page |
 | C / R3 | Toggle camera |
@@ -50,12 +50,14 @@ Shift your spellbook. Shift your feet. Shift the duel.
 
 **Gamepad:** left stick move, right stick aim, face buttons cast, `LT` assisted
 overcast, `RB` swap, `Start` pause. Menus navigate with D-pad/stick + `A`.
-Releasing `LT` in the 0.9–1.2s gold window is a PERFECT overcast.
+Releasing `LT` in the 1.6–1.95s gold window is a PERFECT overcast (+15% damage).
 
 While chanting you are **rooted**. Movement and quickcast are locked until the
-incantation completes or is cancelled. A chant needs 0.9s of hold time and is
-**interrupted by direct damage**, so it is a wager, not a discount. The 1.4s
-assisted hold is the accessible alternative to typing.
+incantation completes or is cancelled. A typed chant needs 1.6s of hold time and
+is **interrupted by direct damage**, so it is a wager, not a discount. Typing is
+the stronger path (×2.4); the 2.3s assisted hold is the accessible ×1.9
+alternative. Every cast also announces its spell name in the HUD and speaks its
+rune words through the synthetic voice.
 
 ### Runes
 
@@ -81,7 +83,7 @@ assisted hold is the accessible alternative to typing.
 | Wall | MURUS | Temporary barrier |
 | Aegis | TUTELA | Personal shield: 35 damage / 3s |
 
-**Modifiers** (4)
+**Modifiers** (5)
 
 | Modifier | Word | Effect |
 |---|---|---|
@@ -89,9 +91,11 @@ assisted hold is the accessible alternative to typing.
 | Heavy | GRAVIS | +45% damage, slower, more knockback |
 | Quick | CITUS | Faster, cheaper cooldown, -18% damage |
 | Pierce | PUNGO | Passes through one target |
+| Track | SEQUI | Every projectile homes toward the rival |
 
 Incantation = element word + form word + optional modifier word, e.g.
-`IGNA MITT`, `GLACIA RUPTA`, `TERRA MITT GRAVIS`.
+`IGNA MITT`, `GLACIA RUPTA`, `TERRA MITT GRAVIS`, `IGNA MITT SEQUI`
+(Fire + Track: seeking bolts).
 
 ### Wands
 

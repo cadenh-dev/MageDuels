@@ -85,6 +85,89 @@ static func bake_voice(voice_id: int) -> Dictionary:
 	}
 
 
+## Bake one short spoken callout per rune word (element / form / modifier).
+## Only the player profile is needed: the rival reuses these streams at a lower
+## pitch_scale, which keeps the extra startup bake small.
+static func bake_callouts(words: Array) -> Dictionary:
+	var out := {}
+	for word in words:
+		var key := str(word).to_upper()
+		if key.is_empty() or out.has(key):
+			continue
+		out[key] = _speak_word(PROFILE_PLAYER, key)
+	return out
+
+
+## Render a rune word as a short, chant-like utterance. It is not English
+## speech: each vowel group becomes a formant-shaped syllable, and consonant
+## clusters become the existing noise onset. Enough to voice "IGNA MITT" as a
+## recognisable cast callout without shipping samples.
+static func _speak_word(profile: Dictionary, word: String) -> AudioStreamWAV:
+	var chunks := _syllables(word)
+	if chunks.is_empty():
+		chunks = [word]
+	var seg := 0.19 if chunks.size() <= 2 else 0.165
+	var gap := 0.012
+	var total := 0.06 + float(chunks.size()) * (seg + gap)
+	var buf := _buffer(total)
+	var base := float(profile["f0"]) * 1.55
+	for i in chunks.size():
+		var chunk := str(chunks[i])
+		var vowel := _first_vowel(chunk)
+		var onset := not _is_vowel(chunk.substr(0, 1))
+		var pitch := base * pow(0.90, float(i))
+		_render_voice(
+			buf, int((0.02 + float(i) * (seg + gap)) * RATE), seg,
+			pitch, pitch * 0.965, vowel, profile,
+			0.95, 1.35 if onset else 0.45
+		)
+	return SynthLib._finalize(buf, 0.60, false, 0.012)
+
+
+## Rough syllabification: consonant cluster + vowel group (+ one coda consonant).
+static func _syllables(word: String) -> Array[String]:
+	var out: Array[String] = []
+	var current := ""
+	var i := 0
+	var n := word.length()
+	while i < n:
+		var ch := word.substr(i, 1)
+		current += ch
+		if _is_vowel(ch):
+			var j := i + 1
+			while j < n and _is_vowel(word.substr(j, 1)):
+				current += word.substr(j, 1)
+				j += 1
+			# Absorb up to two coda consonants so a word like MITT stays one
+			# syllable instead of ending on a bare, vowel-less fragment.
+			var k := j
+			var coda := 0
+			while k < n and coda < 2 and not _is_vowel(word.substr(k, 1)):
+				current += word.substr(k, 1)
+				k += 1
+				coda += 1
+			out.append(current)
+			current = ""
+			i = k
+		else:
+			i += 1
+	if not current.is_empty():
+		out.append(current)
+	return out
+
+
+static func _first_vowel(text: String) -> String:
+	for i in text.length():
+		var ch := text.substr(i, 1).to_upper()
+		if _is_vowel(ch):
+			return ch
+	return "A"
+
+
+static func _is_vowel(ch: String) -> bool:
+	return ch in VOWELS
+
+
 ## Player ladder is a 12-rung A minor pentatonic run from A2 to A4. The rival
 ## uses the same contour 15% lower (see PROFILE_RIVAL.f0).
 static func ladder_frequency(step: int) -> float:

@@ -172,7 +172,11 @@ func _tick_windup(delta: float) -> void:
 		_typing_index = 0
 		_typing_timer = 0.0
 		_typing_interval = randf_range(0.09, 0.14)
-		_chant_timeout = 3.5
+		# Give the honest chant enough time to finish typing *and* hold the
+		# charge, plus a little slack for a human player to interrupt it.
+		var spell := wizard.current_spell(_chant_slot)
+		var length := spell.incantation_compact().length() if spell != null else 12
+		_chant_timeout = Wizard.CHANT_MIN_TIME + float(length) * _typing_interval + 1.0
 		wizard.set_ai_move(Vector3.ZERO)
 	else:
 		# Small pulses make the wind-up readable from across the arena.

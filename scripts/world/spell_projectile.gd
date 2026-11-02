@@ -15,6 +15,7 @@ var color: Color = Color.WHITE
 var knockback: float = 1.5
 var pierce: int = 0
 var homing: bool = false
+var homing_strength: float = 3.2
 var overcast: bool = false
 var spell: SpellDef
 var radius: float = 0.32
@@ -45,6 +46,7 @@ func setup(p: Dictionary) -> void:
 	knockback = float(p.get("knockback", 1.5))
 	pierce = int(p.get("pierce", 0))
 	homing = bool(p.get("homing", false))
+	homing_strength = float(p.get("homing_strength", 3.2))
 	overcast = bool(p.get("overcast", false))
 	spell = p.get("spell")
 	radius = float(p.get("radius", 0.32))
@@ -154,7 +156,8 @@ func _physics_process(delta: float) -> void:
 
 	if homing and is_instance_valid(target) and target.is_alive():
 		var desired := (target.global_position + Vector3.UP * 0.9 - global_position).normalized()
-		direction = direction.slerp(desired, clampf(3.2 * delta, 0.0, 1.0)).normalized()
+		var turn := clampf(homing_strength * delta, 0.0, 1.0)
+		direction = direction.slerp(desired, turn).normalized()
 
 	var from := global_position
 	var to := from + direction * speed * delta

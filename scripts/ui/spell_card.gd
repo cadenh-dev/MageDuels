@@ -98,7 +98,8 @@ func _refresh() -> void:
 		_title.add_theme_color_override("font_color", UIKit.DIM)
 		_incant.text = ""
 		_stats.text = "Select a rune to craft"
-		_note.text = ""
+		if _note != null:
+			_note.text = ""
 		accent = UIKit.OUTLINE
 		return
 	_title.text = spell.display_name()
@@ -106,9 +107,14 @@ func _refresh() -> void:
 	_incant.text = spell.incantation()
 	var s := spell.base_stats()
 	_stats.text = "%d dmg  ·  %d mana  ·  %.2fs" % [roundi(float(s["damage"])), roundi(float(s["mana"])), float(s["cooldown"])]
+	_stats.text_overrun_behavior = TextServer.OVERRUN_TRIM_ELLIPSIS
 	if _note != null:
 		_note.text = str(s["status"])
-	tooltip_text = "%s\n%s\n%s\nCast: %s" % [spell.display_name(), spell.incantation(), s["status"], _stats.text]
+	var over := spell.resolved_stats(SpellData.wand(Game.player_wand), true)
+	tooltip_text = "%s\n%s\n%s\nCast: %s\nTyped overcast: ×%.1f (%d dmg)" % [
+		spell.display_name(), spell.incantation(), s["status"], _stats.text,
+		SpellDef.OVERCAST_MULT, roundi(float(over["damage"]))
+	]
 	queue_redraw()
 
 
@@ -159,11 +165,19 @@ func _draw() -> void:
 
 func _gui_input(event: InputEvent) -> void:
 	if event.is_action_pressed("ui_accept"):
+		_click_feedback()
 		pressed.emit(self)
 		accept_event()
 		return
 	if event is InputEventMouseButton:
 		var mb := event as InputEventMouseButton
 		if mb.button_index == MOUSE_BUTTON_LEFT and mb.pressed:
+			_click_feedback()
 			pressed.emit(self)
 			accept_event()
+
+
+func _click_feedback() -> void:
+	var audio := get_node_or_null("/root/Audio")
+	if audio != null:
+		audio.play("ui_click", "UI")

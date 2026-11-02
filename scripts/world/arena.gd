@@ -471,6 +471,7 @@ func _spawn_projectiles(caster: Wizard, spell: SpellDef, s: Dictionary, origin: 
 			"knockback": s.get("knockback", 1.5),
 			"pierce": s.get("pierce", 0),
 			"homing": s.get("homing", false),
+			"homing_strength": s.get("homing_strength", 3.2),
 			"overcast": s.get("overcast", false),
 			"spell": spell,
 			"radius": s.get("radius", 0.32),

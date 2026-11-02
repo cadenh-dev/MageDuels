@@ -37,7 +37,7 @@ func run(p_main: Node) -> int:
 		await get_tree().process_frame
 	_check("unicode keys advance the chant", p.chant_text == incant, "typed='%s' expected='%s'" % [p.chant_text, incant])
 
-	await get_tree().create_timer(1.0, false).timeout
+	await get_tree().create_timer(Wizard.CHANT_MIN_TIME + 0.1, false).timeout
 	var page_before: int = p.page
 	_send_key(KEY_ENTER, KEY_ENTER, 13)
 	await get_tree().process_frame
@@ -62,12 +62,12 @@ func run(p_main: Node) -> int:
 	_check("chant roots the player", before.distance_to(p.global_position) < 0.08, "moved %.2f" % before.distance_to(p.global_position))
 	p.cancel_chant()
 
-	# Assisted overcast: hold for 1.4s, no typing.
+	# Assisted overcast: hold for the full charge, no typing.
 	for i in p.cooldowns.size():
 		p.cooldowns[i] = 0.0
 	p.mana = p.max_mana
 	_check("assisted chant begins", p.begin_chant(0, true))
-	await get_tree().create_timer(1.55, false).timeout
+	await get_tree().create_timer(Wizard.CHANT_ASSIST_TIME + 0.15, false).timeout
 	_check("assisted chant auto-casts", not p.chanting, "chanting=%s" % p.chanting)
 	_check("assisted cast went on cooldown", p.cooldowns[0] > 0.0, "cd=%.2f" % p.cooldowns[0])
 	_check("assisted flag clears", not p.assisted_chant)
@@ -77,7 +77,7 @@ func run(p_main: Node) -> int:
 	p.mana = p.max_mana
 	_last_stats = {}
 	_check("perfect window opens", p.begin_chant(0, true))
-	await get_tree().create_timer(1.0, false).timeout
+	await get_tree().create_timer((Wizard.CHANT_MIN_TIME + Wizard.CHANT_PERFECT_END) * 0.5, false).timeout
 	_check("release inside window casts", p.assist_release())
 	_check("perfect release flagged", bool(_last_stats.get("perfect", false)), str(_last_stats.get("perfect", false)))
 
@@ -85,7 +85,7 @@ func run(p_main: Node) -> int:
 		p.cooldowns[i] = 0.0
 	p.mana = p.max_mana
 	p.begin_chant(0, true)
-	await get_tree().create_timer(0.2, false).timeout
+	await get_tree().create_timer(Wizard.CHANT_MIN_TIME * 0.4, false).timeout
 	_check("releasing early cancels assist", not p.assist_release() and not p.chanting)
 
 	var has_joy := false

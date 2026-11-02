@@ -17,13 +17,15 @@ var cooldown_ratio := 0.0:
 var cooldown_text := ""
 
 var _name: Label
+var _incant: Label
 var _cost: Label
 var _key: Label
 
 
 func _ready() -> void:
-	custom_minimum_size = Vector2(146, 92)
+	custom_minimum_size = Vector2(156, 96)
 	mouse_filter = Control.MOUSE_FILTER_IGNORE
+	clip_contents = true
 	_build()
 	_refresh()
 
@@ -64,6 +66,11 @@ func _build() -> void:
 	_name.text_overrun_behavior = TextServer.OVERRUN_TRIM_ELLIPSIS
 	box.add_child(_name)
 
+	_incant = UIKit.label("", 10, UIKit.DIM)
+	_incant.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	_incant.text_overrun_behavior = TextServer.OVERRUN_TRIM_ELLIPSIS
+	box.add_child(_incant)
+
 	var spacer := Control.new()
 	spacer.size_flags_vertical = Control.SIZE_EXPAND_FILL
 	spacer.mouse_filter = Control.MOUSE_FILTER_IGNORE
@@ -79,14 +86,22 @@ func _refresh() -> void:
 		return
 	if spell == null:
 		_name.text = "—"
+		_incant.text = ""
 		_cost.text = ""
 		return
 	_name.text = spell.display_name()
 	_key.text = key_text
 	_key.add_theme_color_override("font_color", accent)
+	_incant.text = spell.incantation()
 	var s := spell.base_stats()
-	_cost.text = "%d mana" % roundi(float(s["mana"]))
-	_cost.add_theme_color_override("font_color", UIKit.MUTED)
+	_incant.text = spell.incantation()
+	var mod_name := str(spell.modifier_data().get("name", ""))
+	if spell.modifier != "" and mod_name != "":
+		_cost.text = "%d mana  ·  %s" % [roundi(float(s["mana"])), mod_name.to_upper()]
+		_cost.add_theme_color_override("font_color", accent)
+	else:
+		_cost.text = "%d mana" % roundi(float(s["mana"]))
+		_cost.add_theme_color_override("font_color", UIKit.MUTED)
 
 
 func _draw() -> void:
@@ -99,7 +114,12 @@ func _draw() -> void:
 	sb.border_color = accent if selected else Color(accent.r, accent.g, accent.b, 0.25)
 	sb.set_border_width_all(2 if selected else 1)
 	sb.set_corner_radius_all(9)
+	sb.corner_detail = 8
 	draw_style_box(sb, r)
+
+	if selected:
+		draw_rect(Rect2(9, size.y - 3, size.x - 18, 2), accent, true)
+		draw_circle(Vector2(size.x - 14, 15), 3.5, Color(accent.r, accent.g, accent.b, 0.95))
 
 	if spell != null:
 		draw_rect(Rect2(0, 12, 3, size.y - 24), accent, true)

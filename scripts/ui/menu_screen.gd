@@ -123,7 +123,8 @@ func _build_how_overlay() -> Control:
 		["BUILD", "Both duelists start with the Apprentice Wand and the same spellbook. Win rounds to earn boons."],
 		["MOVE", "WASD moves. The mouse aims. Stay inside the glowing ring."],
 		["QUICKCAST", "Press 1–4 to fire instantly. Cheap, fast, and easy to dodge."],
-		["CHANT", "Press SPACE to plant your feet and begin an incantation. Type the runes and press ENTER to overcast: +80% damage for full mana. Hold the runes for 0.9s, you cannot move, and any direct hit breaks the chant. Hold F / RMB / LT to auto-cast instead."],
+		["CHANT", "Press SPACE to plant your feet and begin an incantation. Type the runes and press ENTER to TYPED OVERCAST: ×2.4 damage for full mana. Hold the runes for 1.6s, you cannot move, and any direct hit breaks the chant. Hold F / RMB / LT for 2.3s to assisted-cast instead."],
+		["MODIFY", "Runes combine one element, one form, and one modifier. TRACK makes every projectile seek the rival — Fire + TRACK is a seeking bolt."],
 		["DRAFT", "After each round the loser picks a boon first. Cards change your wand, add runes, or boost stats, and persist for the match."],
 		["WIN", "First wizard to take three rounds wins. The arena element shifts every round and empowers matching spells by 15%."],
 	]

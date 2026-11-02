@@ -9,6 +9,12 @@ var enemy: Wizard
 var arena: Arena
 
 var _root: Control
+var _frame: MarginContainer
+var _column: VBoxContainer
+var _top_row: HBoxContainer
+var _bottom: VBoxContainer
+var _player_panel: PanelContainer
+var _enemy_panel: PanelContainer
 var _player_hp: ProgressBar
 var _player_mana: ProgressBar
 var _enemy_hp: ProgressBar
@@ -24,7 +30,6 @@ var _mana_style_enemy: StyleBoxFlat
 var _slots: Array[SpellSlotWidget] = []
 var _slots_box: HBoxContainer
 var _page_label: Label
-var _hint_label: Label
 var _round_label: Label
 var _score_label: Label
 var _element_badge: Label
@@ -35,6 +40,11 @@ var _chant_text: RichTextLabel
 var _chant_progress: ProgressBar
 var _chant_zone: ColorRect
 var _chant_hint: Label
+var _chant_mult: Label
+var _cast_box: VBoxContainer
+var _cast_readout: Label
+var _cast_sub: Label
+var _cast_tween: Tween
 var _toast: Label
 var _toast_sub: Label
 var _toast_box: VBoxContainer
@@ -65,11 +75,12 @@ func connect_wizards() -> void:
 	if player != null:
 		player.damaged.connect(_on_player_damaged)
 		player.cast_blocked.connect(_on_cast_blocked)
-		player.cast_fired.connect(_on_player_cast)
+		player.cast_fired.connect(_on_cast)
 		player.chant_changed.connect(func(_w, _a) -> void: _refresh_chant())
 		player.chant_interrupted.connect(_on_chant_interrupted)
 	if enemy != null:
 		enemy.cast_blocked.connect(_on_cast_blocked)
+		enemy.cast_fired.connect(_on_cast)
 		enemy.chant_interrupted.connect(_on_chant_interrupted)
 
 
@@ -80,12 +91,37 @@ func _build() -> void:
 	_root.mouse_filter = Control.MOUSE_FILTER_IGNORE
 	add_child(_root)
 
-	_build_player_panel()
-	_build_enemy_panel()
-	_build_center_top()
-	_build_bottom_bar()
-	_build_chant()
+	# MarginContainer -> VBoxContainer is the documented way to keep a HUD
+	# responsive: the top row and the bottom stack are laid out by containers,
+	# and every size is expressed as a minimum or a theme value instead of a
+	# magic screen coordinate.
+	_frame = MarginContainer.new()
+	_frame.name = "HUDFrame"
+	_frame.set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT)
+	_frame.add_theme_constant_override("margin_left", 20)
+	_frame.add_theme_constant_override("margin_right", 20)
+	_frame.add_theme_constant_override("margin_top", 16)
+	_frame.add_theme_constant_override("margin_bottom", 16)
+	_frame.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	_root.add_child(_frame)
+
+	_column = VBoxContainer.new()
+	_column.name = "HUDColumn"
+	_column.add_theme_constant_override("separation", 0)
+	_column.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	_frame.add_child(_column)
+
+	_build_top_row()
+
+	var middle := Control.new()
+	middle.name = "Middle"
+	middle.size_flags_vertical = Control.SIZE_EXPAND_FILL
+	middle.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	_column.add_child(middle)
+
+	_build_bottom_stack()
 	_build_toast()
+	_build_rival_channel()
 	_build_flash()
 	_build_pause()
 	_build_coach()
@@ -95,13 +131,34 @@ func _build() -> void:
 	_refresh_chant()
 
 
-func _build_player_panel() -> void:
-	var panel := UIKit.panel(Color(0.07, 0.05, 0.12, 0.86), UIColorBorder(), 12)
+func _build_top_row() -> void:
+	_top_row = HBoxContainer.new()
+	_top_row.name = "TopRow"
+	_top_row.add_theme_constant_override("separation", 14)
+	_top_row.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	_column.add_child(_top_row)
+
+	_player_panel = _build_side_panel(true)
+	_top_row.add_child(_player_panel)
+
+	var center := VBoxContainer.new()
+	center.name = "RoundInfo"
+	center.add_theme_constant_override("separation", 4)
+	center.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	center.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	_top_row.add_child(center)
+	_build_center_top(center)
+
+	_enemy_panel = _build_side_panel(false)
+	_top_row.add_child(_enemy_panel)
+
+
+func _build_side_panel(is_player: bool) -> PanelContainer:
+	var panel := UIKit.panel(Color(0.07, 0.05, 0.12, 0.86), UIKit.OUTLINE, 12)
 	panel.mouse_filter = Control.MOUSE_FILTER_IGNORE
-	panel.set_anchors_and_offsets_preset(Control.PRESET_TOP_LEFT)
-	panel.position = Vector2(24, 20)
 	panel.custom_minimum_size = Vector2(348, 0)
-	_root.add_child(panel)
+	panel.size_flags_vertical = Control.SIZE_SHRINK_BEGIN
+	panel.name = "PlayerPanel" if is_player else "EnemyPanel"
 
 	var box := VBoxContainer.new()
 	box.add_theme_constant_override("separation", 5)
@@ -111,97 +168,64 @@ func _build_player_panel() -> void:
 	var header := HBoxContainer.new()
 	header.mouse_filter = Control.MOUSE_FILTER_IGNORE
 	box.add_child(header)
-	var you := UIKit.bold_label("YOU", 16, UIKit.ACCENT)
-	header.add_child(you)
+	if is_player:
+		header.add_child(UIKit.bold_label("YOU", 16, UIKit.ACCENT))
+	else:
+		header.add_child(UIKit.label(str(SpellData.wand(Game.enemy_wand)["name"]), 15, UIKit.MUTED))
 	var spacer := Control.new()
 	spacer.size_flags_horizontal = Control.SIZE_EXPAND_FILL
 	spacer.mouse_filter = Control.MOUSE_FILTER_IGNORE
 	header.add_child(spacer)
-	var wand_name := UIKit.label(str(SpellData.wand(Game.player_wand)["name"]), 15, UIKit.MUTED)
-	header.add_child(wand_name)
+	if is_player:
+		header.add_child(UIKit.label(str(SpellData.wand(Game.player_wand)["name"]), 15, UIKit.MUTED))
+	else:
+		header.add_child(UIKit.bold_label(AIWizard.title_for(Game.enemy_wand), 14, UIKit.DANGER))
 
 	var hp_wrap := Control.new()
 	hp_wrap.custom_minimum_size = Vector2(0, 20)
 	hp_wrap.mouse_filter = Control.MOUSE_FILTER_IGNORE
 	box.add_child(hp_wrap)
-	_player_hp = _make_bar(UIKit.HEAL, false)
-	hp_wrap.add_child(_player_hp)
-	_player_hp_label = UIKit.bold_label("100 / 100", 13, Color(1, 1, 1, 0.9))
-	_player_hp_label.horizontal_alignment = HORIZONTAL_ALIGNMENT_RIGHT
-	_player_hp_label.vertical_alignment = VERTICAL_ALIGNMENT_CENTER
-	_player_hp_label.mouse_filter = Control.MOUSE_FILTER_IGNORE
-	_player_hp_label.set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT)
-	_player_hp_label.offset_right = -8
-	hp_wrap.add_child(_player_hp_label)
-	_hp_style = _player_hp.get_theme_stylebox("fill") as StyleBoxFlat
+	var hp_bar := _make_bar(UIKit.HEAL if is_player else UIKit.DANGER, not is_player)
+	hp_wrap.add_child(hp_bar)
+	var hp_label := UIKit.bold_label("100 / 100", 13, Color(1, 1, 1, 0.9))
+	hp_label.horizontal_alignment = HORIZONTAL_ALIGNMENT_RIGHT if is_player else HORIZONTAL_ALIGNMENT_LEFT
+	hp_label.vertical_alignment = VERTICAL_ALIGNMENT_CENTER
+	hp_label.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	hp_label.set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT)
+	if is_player:
+		hp_label.offset_right = -8
+	else:
+		hp_label.offset_left = 8
+	hp_wrap.add_child(hp_label)
 
 	var mana_wrap := Control.new()
 	mana_wrap.custom_minimum_size = Vector2(0, 9)
 	mana_wrap.mouse_filter = Control.MOUSE_FILTER_IGNORE
 	box.add_child(mana_wrap)
-	_player_mana = _make_bar(UIKit.MANA, false)
-	mana_wrap.add_child(_player_mana)
-	_mana_style = _player_mana.get_theme_stylebox("fill") as StyleBoxFlat
+	var mana_bar := _make_bar(UIKit.MANA, not is_player)
+	mana_wrap.add_child(mana_bar)
 
-	_player_shield_label = UIKit.bold_label("", 12, Color("8fe7ff"))
-	_player_shield_label.visible = false
-	_player_shield_label.mouse_filter = Control.MOUSE_FILTER_IGNORE
-	box.add_child(_player_shield_label)
+	var shield := UIKit.bold_label("", 12, Color("8fe7ff"))
+	shield.visible = false
+	shield.horizontal_alignment = HORIZONTAL_ALIGNMENT_LEFT if is_player else HORIZONTAL_ALIGNMENT_RIGHT
+	shield.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	box.add_child(shield)
 
-
-func _build_enemy_panel() -> void:
-	var panel := UIKit.panel(Color(0.07, 0.05, 0.12, 0.86), UIColorBorder(), 12)
-	panel.mouse_filter = Control.MOUSE_FILTER_IGNORE
-	panel.set_anchors_and_offsets_preset(Control.PRESET_TOP_RIGHT)
-	panel.position = Vector2(-372, 20)
-	panel.custom_minimum_size = Vector2(348, 0)
-	_root.add_child(panel)
-
-	var box := VBoxContainer.new()
-	box.add_theme_constant_override("separation", 5)
-	box.mouse_filter = Control.MOUSE_FILTER_IGNORE
-	panel.add_child(box)
-
-	var header := HBoxContainer.new()
-	header.mouse_filter = Control.MOUSE_FILTER_IGNORE
-	box.add_child(header)
-	var wand_name := UIKit.label(str(SpellData.wand(Game.enemy_wand)["name"]), 15, UIKit.MUTED)
-	header.add_child(wand_name)
-	var spacer := Control.new()
-	spacer.size_flags_horizontal = Control.SIZE_EXPAND_FILL
-	spacer.mouse_filter = Control.MOUSE_FILTER_IGNORE
-	header.add_child(spacer)
-	var rival := UIKit.bold_label(AIWizard.title_for(Game.enemy_wand), 14, UIKit.DANGER)
-	header.add_child(rival)
-
-	var hp_wrap := Control.new()
-	hp_wrap.custom_minimum_size = Vector2(0, 20)
-	hp_wrap.mouse_filter = Control.MOUSE_FILTER_IGNORE
-	box.add_child(hp_wrap)
-	_enemy_hp = _make_bar(UIKit.DANGER, true)
-	hp_wrap.add_child(_enemy_hp)
-	_enemy_hp_label = UIKit.bold_label("100 / 100", 13, Color(1, 1, 1, 0.9))
-	_enemy_hp_label.horizontal_alignment = HORIZONTAL_ALIGNMENT_LEFT
-	_enemy_hp_label.vertical_alignment = VERTICAL_ALIGNMENT_CENTER
-	_enemy_hp_label.mouse_filter = Control.MOUSE_FILTER_IGNORE
-	_enemy_hp_label.set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT)
-	_enemy_hp_label.offset_left = 8
-	hp_wrap.add_child(_enemy_hp_label)
-	_hp_style_enemy = _enemy_hp.get_theme_stylebox("fill") as StyleBoxFlat
-
-	var mana_wrap := Control.new()
-	mana_wrap.custom_minimum_size = Vector2(0, 9)
-	mana_wrap.mouse_filter = Control.MOUSE_FILTER_IGNORE
-	box.add_child(mana_wrap)
-	_enemy_mana = _make_bar(UIKit.MANA, true)
-	mana_wrap.add_child(_enemy_mana)
-	_mana_style_enemy = _enemy_mana.get_theme_stylebox("fill") as StyleBoxFlat
-
-	_enemy_shield_label = UIKit.bold_label("", 12, Color("8fe7ff"))
-	_enemy_shield_label.visible = false
-	_enemy_shield_label.horizontal_alignment = HORIZONTAL_ALIGNMENT_RIGHT
-	_enemy_shield_label.mouse_filter = Control.MOUSE_FILTER_IGNORE
-	box.add_child(_enemy_shield_label)
+	if is_player:
+		_player_hp = hp_bar
+		_player_mana = mana_bar
+		_player_hp_label = hp_label
+		_player_shield_label = shield
+		_hp_style = hp_bar.get_theme_stylebox("fill") as StyleBoxFlat
+		_mana_style = mana_bar.get_theme_stylebox("fill") as StyleBoxFlat
+	else:
+		_enemy_hp = hp_bar
+		_enemy_mana = mana_bar
+		_enemy_hp_label = hp_label
+		_enemy_shield_label = shield
+		_hp_style_enemy = hp_bar.get_theme_stylebox("fill") as StyleBoxFlat
+		_mana_style_enemy = mana_bar.get_theme_stylebox("fill") as StyleBoxFlat
+	return panel
 
 
 func _make_bar(color: Color, reverse: bool) -> ProgressBar:
@@ -229,86 +253,81 @@ func _make_bar(color: Color, reverse: bool) -> ProgressBar:
 	return bar
 
 
-func _build_center_top() -> void:
-	var box := VBoxContainer.new()
-	box.mouse_filter = Control.MOUSE_FILTER_IGNORE
-	box.set_anchors_and_offsets_preset(Control.PRESET_CENTER_TOP)
-	box.position = Vector2(-160, 18)
-	box.custom_minimum_size = Vector2(320, 0)
-	box.add_theme_constant_override("separation", 5)
-	_root.add_child(box)
-
+func _build_center_top(center: VBoxContainer) -> void:
 	_round_label = UIKit.heading("ROUND 1", 22, UIKit.INK)
 	_round_label.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
 	_round_label.mouse_filter = Control.MOUSE_FILTER_IGNORE
-	box.add_child(_round_label)
+	center.add_child(_round_label)
 
 	_score_label = UIKit.bold_label("0  —  0", 18, UIKit.MUTED)
 	_score_label.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
 	_score_label.mouse_filter = Control.MOUSE_FILTER_IGNORE
-	box.add_child(_score_label)
+	center.add_child(_score_label)
 
 	_element_panel = UIKit.panel(Color(0.08, 0.06, 0.14, 0.9), Color(0, 0, 0, 0), 8)
 	_element_panel.mouse_filter = Control.MOUSE_FILTER_IGNORE
-	box.add_child(_element_panel)
+	_element_panel.size_flags_horizontal = Control.SIZE_SHRINK_CENTER
+	center.add_child(_element_panel)
 	_element_badge = UIKit.bold_label("", 13, UIKit.GOLD)
 	_element_badge.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
 	_element_badge.mouse_filter = Control.MOUSE_FILTER_IGNORE
 	_element_panel.add_child(_element_badge)
 
 
-func _build_bottom_bar() -> void:
+func _build_bottom_stack() -> void:
+	_bottom = VBoxContainer.new()
+	_bottom.name = "BottomStack"
+	_bottom.add_theme_constant_override("separation", 4)
+	_bottom.size_flags_vertical = Control.SIZE_SHRINK_END
+	_bottom.alignment = BoxContainer.ALIGNMENT_END
+	_bottom.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	_column.add_child(_bottom)
+
+	# Cast readout: the newest spell name is always visible, for both duelists.
+	var cast_box := VBoxContainer.new()
+	cast_box.add_theme_constant_override("separation", 0)
+	cast_box.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	_bottom.add_child(cast_box)
+	_cast_box = cast_box
+	_cast_readout = UIKit.bold_label("", 15, UIKit.INK)
+	_cast_readout.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
+	_cast_readout.text_overrun_behavior = TextServer.OVERRUN_TRIM_ELLIPSIS
+	_cast_readout.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	cast_box.add_child(_cast_readout)
+	_cast_sub = UIKit.label("", 11, UIKit.DIM)
+	_cast_sub.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
+	_cast_sub.text_overrun_behavior = TextServer.OVERRUN_TRIM_ELLIPSIS
+	_cast_sub.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	cast_box.add_child(_cast_sub)
+
+	_build_chant()
+
+	_page_label = UIKit.bold_label("", 12, UIKit.MUTED)
+	_page_label.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
+	_page_label.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	_bottom.add_child(_page_label)
+
 	_slots_box = HBoxContainer.new()
+	_slots_box.name = "SpellSlots"
 	_slots_box.add_theme_constant_override("separation", 10)
-	_slots_box.set_anchors_and_offsets_preset(Control.PRESET_CENTER_BOTTOM)
-	_slots_box.position = Vector2(-312, -112)
-	_slots_box.custom_minimum_size = Vector2(624, 0)
 	_slots_box.alignment = BoxContainer.ALIGNMENT_CENTER
 	_slots_box.mouse_filter = Control.MOUSE_FILTER_IGNORE
-	_root.add_child(_slots_box)
+	_bottom.add_child(_slots_box)
 
 	for i in 4:
 		var slot := SpellSlotWidget.new()
-		slot.custom_minimum_size = Vector2(146, 92)
+		slot.custom_minimum_size = Vector2(156, 96)
 		_slots_box.add_child(slot)
 		_slots.append(slot)
-
-	_page_label = UIKit.bold_label("PAGE A  ·  SHIFT to swap", 14, UIKit.MUTED)
-	_page_label.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
-	_page_label.set_anchors_and_offsets_preset(Control.PRESET_CENTER_BOTTOM)
-	_page_label.position = Vector2(-200, -134)
-	_page_label.custom_minimum_size = Vector2(400, 0)
-	_page_label.mouse_filter = Control.MOUSE_FILTER_IGNORE
-	_root.add_child(_page_label)
-
-	var hint_panel := UIKit.panel(Color(0.03, 0.02, 0.06, 0.7), Color(1, 1, 1, 0.06), 8)
-	hint_panel.set_anchors_and_offsets_preset(Control.PRESET_BOTTOM_LEFT)
-	hint_panel.position = Vector2(20, -44)
-	hint_panel.custom_minimum_size = Vector2(0, 0)
-	hint_panel.mouse_filter = Control.MOUSE_FILTER_IGNORE
-	_root.add_child(hint_panel)
-	var hint := UIKit.label("WASD · MOUSE · 1-4 · SPACE/RMB · SHIFT", 11, UIKit.MUTED)
-	hint.mouse_filter = Control.MOUSE_FILTER_IGNORE
-	hint_panel.add_child(hint)
-	_hint_label = hint
-
-	_rival_channel = UIKit.bold_label("", 13, UIKit.GOLD)
-	_rival_channel.set_anchors_and_offsets_preset(Control.PRESET_CENTER_TOP)
-	_rival_channel.position = Vector2(-220, 140)
-	_rival_channel.custom_minimum_size = Vector2(440, 0)
-	_rival_channel.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
-	_rival_channel.mouse_filter = Control.MOUSE_FILTER_IGNORE
-	_root.add_child(_rival_channel)
 
 
 func _build_chant() -> void:
 	_chant_panel = UIKit.panel(Color(0.08, 0.06, 0.15, 0.94), UIKit.ACCENT, 12)
-	_chant_panel.set_anchors_and_offsets_preset(Control.PRESET_CENTER_BOTTOM)
-	_chant_panel.position = Vector2(-290, -262)
 	_chant_panel.custom_minimum_size = Vector2(580, 0)
+	_chant_panel.size_flags_horizontal = Control.SIZE_SHRINK_CENTER
 	_chant_panel.mouse_filter = Control.MOUSE_FILTER_IGNORE
 	_chant_panel.visible = false
-	_root.add_child(_chant_panel)
+	_bottom.add_child(_chant_panel)
 
 	var box := VBoxContainer.new()
 	box.add_theme_constant_override("separation", 3)
@@ -332,7 +351,7 @@ func _build_chant() -> void:
 	box.add_child(_chant_text)
 
 	_chant_progress = ProgressBar.new()
-	_chant_progress.custom_minimum_size = Vector2(540, 5)
+	_chant_progress.custom_minimum_size = Vector2(540, 6)
 	_chant_progress.min_value = 0.0
 	_chant_progress.max_value = 1.0
 	_chant_progress.value = 0.0
@@ -341,6 +360,8 @@ func _build_chant() -> void:
 	var track := StyleBoxFlat.new()
 	track.bg_color = Color(0.03, 0.02, 0.06, 0.9)
 	track.set_corner_radius_all(3)
+	track.content_margin_top = 0
+	track.content_margin_bottom = 0
 	var fill := StyleBoxFlat.new()
 	fill.bg_color = UIKit.GOLD
 	fill.set_corner_radius_all(3)
@@ -348,12 +369,12 @@ func _build_chant() -> void:
 	_chant_progress.add_theme_stylebox_override("fill", fill)
 	box.add_child(_chant_progress)
 
+	# The perfect-release window is drawn as an anchor-driven overlay, so it
+	# tracks the bar's real width at any resolution.
 	_chant_zone = ColorRect.new()
 	_chant_zone.color = Color(1.0, 0.82, 0.4, 0.38)
 	_chant_zone.mouse_filter = Control.MOUSE_FILTER_IGNORE
 	_chant_zone.set_anchors_preset(Control.PRESET_FULL_RECT)
-	_chant_zone.anchor_left = 0.643
-	_chant_zone.anchor_right = 0.857
 	_chant_zone.offset_left = 0
 	_chant_zone.offset_right = 0
 	_chant_zone.offset_top = 0
@@ -361,31 +382,58 @@ func _build_chant() -> void:
 	_chant_zone.visible = false
 	_chant_progress.add_child(_chant_zone)
 
-	_chant_hint = UIKit.label("ENTER unleash  ·  ESC cancel  ·  hold the runes for 0.9s", 12, UIKit.DIM)
+	_chant_mult = UIKit.bold_label("", 12, UIKit.GOLD)
+	_chant_mult.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
+	_chant_mult.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	box.add_child(_chant_mult)
+
+	_chant_hint = UIKit.label("", 11, UIKit.DIM)
 	_chant_hint.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
+	_chant_hint.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
 	_chant_hint.mouse_filter = Control.MOUSE_FILTER_IGNORE
 	box.add_child(_chant_hint)
 
 
 func _build_toast() -> void:
 	_toast_box = VBoxContainer.new()
+	_toast_box.name = "Toast"
 	_toast_box.set_anchors_and_offsets_preset(Control.PRESET_CENTER_TOP)
-	_toast_box.position = Vector2(-360, 190)
-	_toast_box.custom_minimum_size = Vector2(720, 0)
+	_toast_box.offset_left = -360
+	_toast_box.offset_right = 360
+	_toast_box.offset_top = 172
+	_toast_box.offset_bottom = 292
+	_toast_box.grow_horizontal = Control.GROW_DIRECTION_BOTH
 	_toast_box.add_theme_constant_override("separation", 2)
+	_toast_box.alignment = BoxContainer.ALIGNMENT_BEGIN
 	_toast_box.mouse_filter = Control.MOUSE_FILTER_IGNORE
 	_toast_box.modulate.a = 0.0
 	_root.add_child(_toast_box)
 
 	_toast = UIKit.heading("", 46, UIKit.INK)
 	_toast.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
+	_toast.text_overrun_behavior = TextServer.OVERRUN_TRIM_ELLIPSIS
 	_toast.mouse_filter = Control.MOUSE_FILTER_IGNORE
 	_toast_box.add_child(_toast)
 
 	_toast_sub = UIKit.label("", 19, UIKit.MUTED)
 	_toast_sub.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
+	_toast_sub.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
 	_toast_sub.mouse_filter = Control.MOUSE_FILTER_IGNORE
 	_toast_box.add_child(_toast_sub)
+
+
+func _build_rival_channel() -> void:
+	_rival_channel = UIKit.bold_label("", 13, UIKit.GOLD)
+	_rival_channel.set_anchors_and_offsets_preset(Control.PRESET_CENTER_TOP)
+	_rival_channel.offset_left = -220
+	_rival_channel.offset_right = 220
+	_rival_channel.offset_top = 126
+	_rival_channel.offset_bottom = 146
+	_rival_channel.grow_horizontal = Control.GROW_DIRECTION_BOTH
+	_rival_channel.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
+	_rival_channel.text_overrun_behavior = TextServer.OVERRUN_TRIM_ELLIPSIS
+	_rival_channel.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	_root.add_child(_rival_channel)
 
 
 func _build_flash() -> void:
@@ -466,7 +514,7 @@ func _build_coach() -> void:
 	_coach = Coach.new()
 	_coach.player = player
 	_coach.set_anchors_and_offsets_preset(Control.PRESET_TOP_LEFT)
-	_coach.position = Vector2(24, 126)
+	_coach.position = Vector2(20, 132)
 	_root.add_child(_coach)
 
 
@@ -535,14 +583,17 @@ func _refresh_slots() -> void:
 	for i in _slots.size():
 		var spell: SpellDef = spells[i] if i < spells.size() else null
 		_slots[i].setup(spell, str(i + 1), i == player.selected_slot)
-	_page_label.text = "PAGE %s  ·  %s to swap" % ["A" if player.page == 0 else "B", "RB" if Game.input_mode == "pad" else "SHIFT"]
 
 
 func _update_input_hints() -> void:
-	if _hint_label != null:
-		_hint_label.text = "LS MOVE · RS AIM · ABXY CAST · LT HOLD" if Game.input_mode == "pad" else "WASD · MOUSE · 1-4 · SPACE/RMB · SHIFT"
-	if _page_label != null and player != null:
-		_page_label.text = "PAGE %s  ·  %s to swap" % ["A" if player.page == 0 else "B", "RB" if Game.input_mode == "pad" else "SHIFT"]
+	if _page_label == null or player == null:
+		return
+	var controls := "WASD MOVE  ·  1–4 CAST  ·  SPACE CHANT  ·  F / RMB HOLD  ·  SHIFT PAGE"
+	if Game.input_mode == "pad":
+		controls = "LS MOVE  ·  RS AIM  ·  ABXY CAST  ·  LT HOLD  ·  RB PAGE"
+	var text := "PAGE %s  ·  %s" % ["A" if player.page == 0 else "B", controls]
+	if _page_label.text != text:
+		_page_label.text = text
 
 
 func _update_round_info() -> void:
@@ -565,13 +616,25 @@ func _refresh_chant() -> void:
 	var spell := player.current_spell(player.chant_slot)
 	if spell == null:
 		return
+	var color := UIKit.spell_color(spell)
+	_chant_title.add_theme_color_override("font_color", color)
 	if player.assisted_chant:
-		_chant_title.text = "ASSISTED OVERCAST  ·  %s" % spell.display_name()
+		_chant_title.text = "ASSISTED OVERCAST  ·  %s" % spell.display_name().to_upper()
 		_chant_text.text = "[color=#ffd166]%s[/color]" % spell.incantation()
-		_chant_hint.text = "Release in the gold window for PERFECT  ·  hold to 1.4s to auto"
+		_chant_hint.text = "HOLD %.1fs  ·  release in the gold window for PERFECT (+%d%%)  ·  auto at %.1fs" % [
+			player.chant_time_target(), roundi(SpellDef.PERFECT_DAMAGE_BONUS * 100.0), Wizard.CHANT_ASSIST_TIME
+		]
+		# Show the real perfect-release window on the bar. The bar's span is
+		# CHANT_ASSIST_TIME, so the window is two anchor ratios.
+		var span := maxf(0.01, player.chant_time_target())
+		var window := player.perfect_window()
+		_chant_zone.visible = true
+		_chant_zone.anchor_left = clampf(window.x / span, 0.0, 1.0)
+		_chant_zone.anchor_right = clampf(window.y / span, 0.0, 1.0)
 	else:
-		_chant_title.text = "CHANTING  ·  %s" % spell.display_name()
-		_chant_hint.text = "ENTER unleash  ·  ESC cancel  ·  hold the runes for 0.9s"
+		_chant_title.text = "TYPED OVERCAST  ·  %s" % spell.display_name().to_upper()
+		_chant_hint.text = "TYPE THE GOLD RUNES  ·  ENTER unleash  ·  ESC cancel  ·  hold %.1fs" % Wizard.CHANT_MIN_TIME
+		_chant_zone.visible = false
 		var target := spell.incantation()
 		var typed := player.chant_text.length()
 		var count := 0
@@ -586,9 +649,10 @@ func _refresh_chant() -> void:
 				out += "[color=#5f567d]%s[/color]" % ch
 			count += 1
 		_chant_text.text = out
+	var mult := SpellDef.ASSIST_OVERCAST_MULT if player.assisted_chant else SpellDef.OVERCAST_MULT
+	var charge := "READY" if player.chant_progress() >= 1.0 else "CHARGE %.1fs" % maxf(0.0, player.chant_time_target() - player.chant_elapsed)
+	_chant_mult.text = "×%.1f DAMAGE  ·  %s  ·  %s" % [mult, "NO TYPING" if player.assisted_chant else "TYPING IS STRONGER", charge]
 	_chant_progress.value = player.chant_progress()
-	if _chant_zone != null:
-		_chant_zone.visible = player.assisted_chant
 	var fill_style := _chant_progress.get_theme_stylebox("fill") as StyleBoxFlat
 	if fill_style != null:
 		fill_style.bg_color = UIKit.GOLD if player.chant_progress() >= 1.0 else UIKit.ACCENT_DARK
@@ -612,9 +676,36 @@ func _on_chant_interrupted(wiz: Wizard) -> void:
 		show_message("RIVAL'S CHANT BROKEN", UIKit.GOLD, 0.9)
 
 
-func _on_player_cast(_wiz: Wizard, _spell: SpellDef, stats: Dictionary, _origin: Vector3, _direction: Vector3) -> void:
-	if bool(stats.get("perfect", false)):
+func _on_cast(wiz: Wizard, spell: SpellDef, stats: Dictionary, _origin: Vector3, _direction: Vector3) -> void:
+	announce_cast(spell, stats, wiz == player)
+	if wiz == player and bool(stats.get("perfect", false)):
 		show_message("PERFECT OVERCAST", UIKit.GOLD, 0.8)
+
+
+## Persistent bottom readout: names every cast as it happens, including the
+## rune incantation and the overcast multiplier.
+func announce_cast(spell: SpellDef, stats: Dictionary, is_player: bool) -> void:
+	if spell == null or _cast_readout == null:
+		return
+	var color := UIKit.spell_color(spell)
+	var overcast := bool(stats.get("overcast", false))
+	var mult := float(stats.get("overcast_mult", 1.0))
+	_cast_readout.text = "%s  ·  %s" % ["YOU" if is_player else "RIVAL", spell.display_name().to_upper()]
+	_cast_readout.add_theme_color_override("font_color", color if is_player else color.darkened(0.2))
+	var bits: Array[String] = [spell.incantation()]
+	if overcast:
+		bits.append("×%.1f OVERCAST" % mult)
+		if bool(stats.get("perfect", false)):
+			bits.append("PERFECT")
+	_cast_sub.text = "   ".join(bits)
+	_cast_sub.add_theme_color_override("font_color", UIKit.GOLD if overcast else UIKit.DIM)
+	if _cast_tween != null and _cast_tween.is_valid():
+		_cast_tween.kill()
+	_cast_box.modulate.a = 0.0
+	_cast_tween = create_tween()
+	_cast_tween.tween_property(_cast_box, "modulate:a", 1.0, 0.10)
+	_cast_tween.tween_interval(0.75 if is_player else 0.55)
+	_cast_tween.tween_property(_cast_box, "modulate:a", 0.0, 0.3)
 
 
 func _on_player_damaged(_wiz: Wizard, _amount: float) -> void:
@@ -652,7 +743,3 @@ func _play_toast(hold: float) -> void:
 	_toast_tween.tween_property(_toast_box, "modulate:a", 1.0, 0.18)
 	_toast_tween.tween_interval(hold)
 	_toast_tween.tween_property(_toast_box, "modulate:a", 0.0, 0.35)
-
-
-func UIColorBorder() -> Color:
-	return UIKit.OUTLINE

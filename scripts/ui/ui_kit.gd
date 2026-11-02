@@ -50,10 +50,9 @@ static func bold_font() -> Font:
 	return _rajdhani_bold
 
 
-static func heading(text: String, size: int = 44, color: Color = INK, letter_spacing: int = 2) -> Label:
+static func heading(text: String, size: int = 44, color: Color = INK) -> Label:
 	var l := Label.new()
 	l.text = text
-	l.add_theme_font_override("font", heading_font())
 	l.add_theme_font_override("font", heading_font())
 	l.add_theme_font_size_override("font_size", size)
 	l.add_theme_color_override("font_color", color)

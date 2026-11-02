@@ -37,6 +37,10 @@ window/handheld/orientation=1
 
 project/assembly_name="SHIFTCAST"
 
+[gui]
+
+theme/custom_font="res://assets/fonts/Rajdhani-Regular.ttf"
+
 [rendering]
 
 renderer/rendering_method="gl_compatibility"

@@ -210,9 +210,10 @@ func _build_tips() -> PanelContainer:
 	box.add_child(title)
 
 	var tips := [
-		"Type the gold incantation to OVERCAST: +80% damage for full mana — hold 0.9s, and direct damage breaks the chant.",
+		"TYPED OVERCAST: type the gold incantation, hold 1.6s, press ENTER. ×2.4 damage for full mana — direct damage breaks the chant.",
+		"ASSISTED OVERCAST: hold F / RMB / LT for 2.3s instead. ×1.9 damage, no typing; release in the gold window for +15% PERFECT.",
+		"TRACK is a modifier: every projectile it touches curves toward the rival. Fire + TRACK makes seeking bolts, even at a bad angle.",
 		"The arena element shifts every round and empowers matching spells by 15%. Pages A and B should cover different elements.",
-		"Quickcasts are free to spam but easy to read. Save a heavy or piercing spell for when the rival is rooted mid-chant.",
 	]
 	for tip in tips:
 		var line := UIKit.label("·  " + tip, 14, UIKit.MUTED)
@@ -330,7 +331,12 @@ func _refresh_all() -> void:
 	_preview_name.add_theme_color_override("font_color", UIKit.spell_color(spell))
 	_preview_incant.text = spell.incantation()
 	var st := spell.base_stats()
-	_preview_stats.text = "%d dmg   %d mana   %.2fs   %s" % [roundi(float(st["damage"])), roundi(float(st["mana"])), float(st["cooldown"]), st["kind"]]
+	var over := spell.resolved_stats(SpellData.wand(Game.player_wand), true)
+	_preview_stats.text = "%d→%d dmg   %d mana   %.2fs   %s" % [
+		roundi(float(st["damage"])), roundi(float(over["damage"])),
+		roundi(float(st["mana"])), float(st["cooldown"]), st["kind"]
+	]
+	_preview_stats.text_overrun_behavior = TextServer.OVERRUN_TRIM_ELLIPSIS
 	_preview_status.text = str(st["status"])
 	_preview_status.add_theme_color_override("font_color", UIKit.spell_color(spell).darkened(0.15))
 

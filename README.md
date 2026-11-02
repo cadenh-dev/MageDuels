@@ -27,7 +27,7 @@ Made with Godot 4.7.2. Browser-first, procedural art, no external gameplay asset
 | `1`–`4` | Quickcast the spell in that slot |
 | `Space` | Begin chanting the selected spell |
 | Type + `Enter` | Complete the incantation → **Overcast** |
-| `F` / Right Mouse / `LT` (hold) | **Assisted overcast** — auto-casts after 1.4s, no typing |
+| `F` / Right Mouse / `LT` (hold) | **Assisted overcast** — auto-casts after 2.3s, no typing |
 | Mouse wheel | Cycle the selected spell slot |
 | `Shift` / `RB` | Swap spell page (A ↔ B) |
 | `C` / `R3` | Toggle follow camera ↔ arena camera |
@@ -37,12 +37,14 @@ Made with Godot 4.7.2. Browser-first, procedural art, no external gameplay asset
 swaps pages, `LT` holds an assisted overcast, `Start` pauses. Menus are navigable
 with the D-pad or left stick and `A`.
 
-A chant roots you for at least **0.9 seconds**, costs full mana, deals **+80%**
-damage, and is **broken by any direct hit**. Typing is the fast/high-skill route;
-the 1.4s hold is the accessible route. Releasing the hold in the **gold window
-(0.9–1.2s)** is a **PERFECT overcast** and fires sooner, so the pad has a hard
-mode as well. The rival follows the same rules. **Ward** blocks projectiles;
-**Aegis** is a personal shield that absorbs 35 damage for 3s.
+A chant roots you for at least **1.6 seconds**, costs full mana, deals **×2.4**
+damage, and is **broken by any direct hit**. Typing is the strong, high-skill
+route; the 2.3s assisted hold is the accessible **×1.9** route. Releasing the
+hold in the **gold window (1.6–1.95s)** is a **PERFECT overcast** (+15% damage),
+so the pad has a hard mode as well. Every cast is named in the HUD and the rune
+words are spoken by the synthetic voice. The rival follows the same rules.
+**Ward** blocks projectiles; **Aegis** is a personal shield that absorbs 35
+damage for 3s.
 
 ### The runes
 
@@ -52,11 +54,12 @@ for the whole match. First to **three** rounds wins.
 
 - **Elements:** Fire, Frost, Storm, Earth, Arcane, Void
 - **Forms:** Bolt, Orb, Beam, Nova, Ward, Aegis
-- **Modifiers:** Split, Heavy, Quick, Pierce
+- **Modifiers:** Split, Heavy, Quick, Pierce, Track
 
 An incantation is the element word plus the form word (plus an optional modifier
-word), e.g. `IGNA MITT` or `GLACIA RUPTA GRAVIS`. The arena's element changes each
-round and adds +15% damage to matching spells.
+word), e.g. `IGNA MITT` or `GLACIA RUPTA GRAVIS`. `TRACK` makes every projectile
+curve toward the rival, so `IGNA MITT SEQUI` is a seeking fire bolt. The arena's
+element changes each round and adds +15% damage to matching spells.
 
 ---
 

@@ -4,6 +4,14 @@ extends RefCounted
 ## A single crafted spell: one element rune, one form rune, and an optional modifier.
 ## All balance math lives here so the server can reuse it verbatim later.
 
+## Typed chants are the committed, high-risk cast: they pay full mana and hit far
+## harder than a quickcast. Assisted holds are still overcast, but deliberately
+## weaker so that actually typing the incantation stays the stronger option.
+const OVERCAST_MULT := 2.4
+const ASSIST_OVERCAST_MULT := 1.9
+## Releasing an assisted hold inside the gold window is a perfect cast.
+const PERFECT_DAMAGE_BONUS := 0.15
+
 var element: String = "fire"
 var form: String = "bolt"
 var modifier: String = ""
@@ -73,6 +81,9 @@ func base_stats() -> Dictionary:
 		status = "Shield %d for %.1fs" % [roundi(float(f.get("shield", 0.0))), float(f.get("duration", 0.0))]
 	elif kind == "wall":
 		status = "Barrier for %.1fs" % float(f.get("duration", 0.0))
+	var note := str(m.get("note", ""))
+	if note != "":
+		status += "  ·  " + note
 
 	return {
 		"base_damage": damage,
@@ -88,7 +99,8 @@ func base_stats() -> Dictionary:
 		"range": float(f.get("range", 15.0)),
 		"duration": float(f.get("duration", 0.0)),
 		"shield": float(f.get("shield", 0.0)),
-		"homing": bool(f.get("homing", false)),
+		"homing": bool(f.get("homing", false)) or bool(m.get("homing", false)),
+		"homing_strength": float(m.get("homing_strength", 3.2)),
 		"kind": kind,
 		"element": element,
 		"status": status,
@@ -97,7 +109,8 @@ func base_stats() -> Dictionary:
 
 
 ## Stats after the caster's wand affinity and the overcast bonus are applied.
-func resolved_stats(wand: Dictionary, overcast: bool = false) -> Dictionary:
+## ``overcast_mult`` lets typed chants and assisted holds use different payoffs.
+func resolved_stats(wand: Dictionary, overcast: bool = false, overcast_mult: float = OVERCAST_MULT) -> Dictionary:
 	var s := base_stats()
 	var affinity: String = str(wand.get("affinity", ""))
 	var affinity_bonus: float = float(wand.get("affinity_bonus", 0.0))
@@ -113,10 +126,11 @@ func resolved_stats(wand: Dictionary, overcast: bool = false) -> Dictionary:
 	s["speed"] = float(s["speed"]) * float(wand.get("speed_mult", 1.0))
 
 	if overcast:
-		s["damage"] = float(s["damage"]) * 1.8
-		if str(s.get("kind", "")) == "shield":
-			s["shield"] = float(s["shield"]) * 1.5
+		var mult := maxf(1.0, overcast_mult)
+		s["damage"] = float(s["damage"]) * mult
+		s["shield"] = float(s["shield"]) * (1.0 + (mult - 1.0) * 0.6)
 		s["overcast"] = true
+		s["overcast_mult"] = mult
 
 	s["damage"] = snappedf(float(s["damage"]), 0.1)
 	s["mana"] = snappedf(float(s["mana"]), 0.1)

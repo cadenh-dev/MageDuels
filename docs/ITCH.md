@@ -41,16 +41,17 @@ wizard, duel, typing, spell-crafting, runes, 2.5d, web, godot, fantasy, strategy
 | `1`–`4` | Quickcast the spell in that slot |
 | `Space` | Begin chanting the selected spell |
 | Type + `Enter` | Complete the incantation → Overcast |
-| `F` / Right Mouse / `LT` (hold) | Assisted overcast — auto-casts after 1.4s |
+| `F` / Right Mouse / `LT` (hold) | Assisted overcast — auto-casts after 2.3s |
 | Mouse wheel | Cycle the selected spell slot |
 | `Shift` / `RB` | Swap spell page (A ↔ B) |
 | `C` / `R3` | Toggle follow camera ↔ arena camera |
 | `Esc` / `Start` | Pause; cancel a chant while chanting |
 
 **Gamepad:** left stick move, right stick aim, `A/B/X/Y` cast slots 1–4, `RB`
-swap page, `LT` assisted overcast, `Start` pause. Release `LT` in the gold window
-for a PERFECT overcast, or hold to 1.4s to auto-cast. Menus navigate with the D-pad
-or left stick and `A`. **ENTER THE ARENA** starts the match directly.
+swap page, `LT` assisted overcast, `Start` pause. Release `LT` in the 1.6–1.95s
+gold window for a PERFECT overcast, or hold to 2.3s to auto-cast. Menus navigate
+with the D-pad or left stick and `A`. **ENTER THE ARENA** starts the match
+directly.
 
 ## Credits
 
