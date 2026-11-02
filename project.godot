@@ -19,6 +19,7 @@ boot_splash/show_image=false
 Game="*res://scripts/core/game.gd"
 SpellData="*res://scripts/core/spell_data.gd"
 Audio="*res://scripts/core/audio.gd"
+AsciiFx="*res://scripts/world/ascii_fx.gd"
 
 [display]
 
