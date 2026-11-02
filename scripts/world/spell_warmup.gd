@@ -1,25 +1,17 @@
 class_name SpellWarmup
 extends Node
 
-## Renders one offscreen arena, two wizards, and every spell form/effect once.
-## This compiles the standard-material/shader variants before the first real
-## duel, removing the first-cast and battle-entry hitches.
+## Renders one arena, two wizards, and every spell form/effect once in the REAL
+## viewport, behind the boot loading screen. This compiles the same depth,
+## transparent, MSAA, light, and particle pipelines the first duel will use.
 
 
-func run() -> void:
+func run(parent: Node3D) -> void:
 	if DisplayServer.get_name() == "headless":
 		return
 
-	var viewport := SubViewport.new()
-	viewport.size = Vector2i(640, 360)
-	viewport.own_world_3d = true
-	viewport.render_target_update_mode = SubViewport.UPDATE_ALWAYS
-	viewport.msaa_3d = Viewport.MSAA_DISABLED
-	viewport.transparent_bg = false
-	add_child(viewport)
-
 	var arena := Arena.new()
-	viewport.add_child(arena)
+	parent.add_child(arena)
 	arena.build("fire")
 
 	var kit := Game.wizard_kit("apprentice")
@@ -36,10 +28,12 @@ func run() -> void:
 	var wand := SpellData.wand("apprentice")
 	var forms: Array[String] = ["bolt", "orb", "beam", "nova", "wall", "aegis"]
 	var elements: Array[String] = ["fire", "frost", "storm", "earth", "arcane", "void"]
-	for i in forms.size():
-		var spell := SpellDef.new(elements[i], forms[i])
-		var stats := spell.resolved_stats(wand, false)
-		arena.spawn_spell(p, spell, stats, p.get_muzzle_position(), Vector3.RIGHT)
+	# Every color/form material used by the real spellbook, not just a diagonal.
+	for element in elements:
+		for form in forms:
+			var spell := SpellDef.new(element, form)
+			var stats := spell.resolved_stats(wand, false)
+			arena.spawn_spell(p, spell, stats, p.get_muzzle_position(), Vector3.RIGHT)
 
 	# Impact/UI variants that are not part of a projectile.
 	Fx.burst(arena.effects, Vector3.ZERO, Color.WHITE, 8, 3.0, 0.06, 0.3)
@@ -51,4 +45,5 @@ func run() -> void:
 	await get_tree().process_frame
 	await RenderingServer.frame_post_draw
 	await get_tree().process_frame
-	viewport.queue_free()
+	arena.queue_free()
+	await get_tree().process_frame

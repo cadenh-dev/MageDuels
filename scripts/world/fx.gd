@@ -3,6 +3,8 @@ extends RefCounted
 
 ## Small procedural VFX helpers. No external assets required.
 
+static var _burst_materials: Dictionary = {}
+
 
 static func standard_material(color: Color, emission_strength: float = 0.0, unshaded: bool = false) -> StandardMaterial3D:
 	var mat := StandardMaterial3D.new()
@@ -42,6 +44,7 @@ static func burst(parent: Node, pos: Vector3, color: Color, amount: int = 18, sp
 	p.scale_amount_min = 0.8
 	p.scale_amount_max = 1.9
 	p.color = Color.WHITE
+	p.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_OFF
 
 	var sphere := SphereMesh.new()
 	sphere.radius = maxf(0.03, size * 0.7)
@@ -55,15 +58,23 @@ static func burst(parent: Node, pos: Vector3, color: Color, amount: int = 18, sp
 	ramp.set_color(1, Color(color.r, color.g, color.b, 0.0))
 	p.color_ramp = ramp
 
-	var mat := glow_material(color, 3.0)
-	mat.transparency = BaseMaterial3D.TRANSPARENCY_ALPHA
-	mat.vertex_color_use_as_albedo = true
+	var mat := _burst_material(color)
 	p.material_override = mat
 
 	parent.add_child(p)
 	p.global_position = pos
 	p.emitting = true
 	p.finished.connect(p.queue_free)
+
+
+static func _burst_material(color: Color) -> StandardMaterial3D:
+	var key := color.to_html()
+	if not _burst_materials.has(key):
+		var mat := glow_material(color, 3.0)
+		mat.transparency = BaseMaterial3D.TRANSPARENCY_ALPHA
+		mat.vertex_color_use_as_albedo = true
+		_burst_materials[key] = mat
+	return _burst_materials[key]
 
 
 static func beam(parent: Node, from: Vector3, to: Vector3, color: Color, width: float = 0.09, duration: float = 0.18) -> void:

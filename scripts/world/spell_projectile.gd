@@ -27,6 +27,11 @@ var _spin := 0.0
 var _trail: CPUParticles3D
 var _near_missed := false
 
+## Shared by every projectile of the same color: no material churn per cast.
+static var _core_materials: Dictionary = {}
+static var _halo_materials: Dictionary = {}
+static var _trail_materials: Dictionary = {}
+
 
 func setup(p: Dictionary) -> void:
 	arena = p.get("arena")
@@ -63,7 +68,7 @@ func _build_visual() -> void:
 
 	var core := MeshInstance3D.new()
 	core.mesh = sphere
-	core.material_override = Fx.glow_material(color, 4.0)
+	core.material_override = _core_material(color)
 	core.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_OFF
 	add_child(core)
 
@@ -74,23 +79,13 @@ func _build_visual() -> void:
 	halo_mesh.radial_segments = 10
 	halo_mesh.rings = 5
 	halo.mesh = halo_mesh
-	var halo_mat := Fx.glow_material(Color(color.r, color.g, color.b, 0.18), 2.0)
-	halo_mat.transparency = BaseMaterial3D.TRANSPARENCY_ALPHA
-	halo_mat.blend_mode = BaseMaterial3D.BLEND_MODE_ADD
-	halo.material_override = halo_mat
+	halo.material_override = _halo_material(color)
 	halo.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_OFF
 	add_child(halo)
 
-	var light := OmniLight3D.new()
-	light.light_color = color
-	light.light_energy = 1.4
-	light.omni_range = 3.6
-	light.shadow_enabled = false
-	add_child(light)
-
 	var trail := CPUParticles3D.new()
-	trail.amount = 30
-	trail.lifetime = 0.28
+	trail.amount = 22
+	trail.lifetime = 0.22
 	trail.local_coords = false
 	trail.emitting = false
 	trail.direction = Vector3.ZERO
@@ -112,10 +107,7 @@ func _build_visual() -> void:
 	ramp.set_color(0, Color(color.r, color.g, color.b, 0.7))
 	ramp.set_color(1, Color(color.r, color.g, color.b, 0.0))
 	trail.color_ramp = ramp
-	var mat := Fx.glow_material(color, 2.0)
-	mat.transparency = BaseMaterial3D.TRANSPARENCY_ALPHA
-	mat.vertex_color_use_as_albedo = true
-	trail.material_override = mat
+	trail.material_override = _trail_material(color)
 	add_child(trail)
 	_trail = trail
 
@@ -123,6 +115,35 @@ func _build_visual() -> void:
 func _ready() -> void:
 	if _trail != null:
 		_trail.emitting = true
+	if arena != null and is_instance_valid(arena):
+		arena.pulse_spell_light(global_position, color)
+
+
+static func _core_material(c: Color) -> StandardMaterial3D:
+	var key := c.to_html()
+	if not _core_materials.has(key):
+		_core_materials[key] = Fx.glow_material(c, 4.0)
+	return _core_materials[key]
+
+
+static func _halo_material(c: Color) -> StandardMaterial3D:
+	var key := c.to_html()
+	if not _halo_materials.has(key):
+		var mat := Fx.glow_material(Color(c.r, c.g, c.b, 0.14), 2.0)
+		mat.transparency = BaseMaterial3D.TRANSPARENCY_ALPHA
+		mat.blend_mode = BaseMaterial3D.BLEND_MODE_ADD
+		_halo_materials[key] = mat
+	return _halo_materials[key]
+
+
+static func _trail_material(c: Color) -> StandardMaterial3D:
+	var key := c.to_html()
+	if not _trail_materials.has(key):
+		var mat := Fx.glow_material(c, 2.0)
+		mat.transparency = BaseMaterial3D.TRANSPARENCY_ALPHA
+		mat.vertex_color_use_as_albedo = true
+		_trail_materials[key] = mat
+	return _trail_materials[key]
 
 
 func _physics_process(delta: float) -> void:

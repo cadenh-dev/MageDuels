@@ -23,9 +23,20 @@
 
 - **`Audio.prepare()`** — audio baking moved out of `_ready` and behind the boot
   loading screen. The menu appears only after the bank and music are ready.
-- **`SpellWarmup`** — one offscreen `SubViewport` builds an arena, two wizards,
-  and every spell form/effect once. All shader variants compile there instead of
-  during the first duel.
+- **`SpellWarmup`** — the real arena, two wizards, every spell form, and **every
+  element × form color combination** render once in the **real viewport**
+  (behind the loading screen). This compiles the same depth, transparent, MSAA,
+  light, and particle pipelines the first duel uses.
+- **Stable light count** — per-projectile and per-wall `OmniLight3D` nodes were
+  removed. The arena now owns two pooled spell lights created at build time, so
+  casting never changes the scene's light list or forces pipeline rebuilds.
+- **Material reuse** — projectile core/halo/trail and impact-burst materials are
+  cached per color instead of allocated on every cast.
+- **No shadow passes for VFX** — projectile trails, bursts, and walls no longer
+  cast shadows.
+- **Real-wizard shield warm-up** — the actual round wizards briefly show their
+  shield bubble at build time, compiling the per-wizard Aegis material before a
+  player can cast it.
 - **`LoadingScreen`** — covers the audio bake and warm-up with a deliberate
   boot screen instead of a frozen menu.
 - **`.gdignore` files** in every generated/tooling folder. Godot no longer scans
@@ -40,21 +51,36 @@
 Machine under normal load, Godot 4.7.2 GL Compatibility, 1280×720:
 
 ```
-AUDIO: baked in 873 ms (voice 159 ms)
-PROFILE build_ms=23.4
-PROFILE page=0 slot=0 max_frame=19.7ms
-PROFILE page=0 slot=1 max_frame=20.9ms
-PROFILE page=0 slot=2 max_frame=18.4ms
-PROFILE page=0 slot=3 max_frame=19.2ms
-PROFILE page=1 slot=0 max_frame=18.7ms
-PROFILE page=1 slot=1 max_frame=19.7ms
-PROFILE page=1 slot=2 max_frame=20.3ms
-PROFILE page=1 slot=3 max_frame=21.3ms
-PROFILE worst_frame=21.3ms
+AUDIO: baked in 878 ms (voice 162 ms)
+PROFILE build_ms=25.6
+PROFILE page=0 slot=0 max_frame=22.4ms
+PROFILE page=0 slot=1 max_frame=20.0ms
+PROFILE page=0 slot=2 max_frame=20.1ms
+PROFILE page=0 slot=3 max_frame=19.1ms
+PROFILE page=1 slot=0 max_frame=20.8ms
+PROFILE page=1 slot=1 max_frame=19.6ms
+PROFILE page=1 slot=2 max_frame=19.1ms
+PROFILE page=1 slot=3 max_frame=23.4ms
+PROFILE worst_frame=23.4ms
 ```
 
-Without the warm-up, the first cast and first battle frame were the visible
-hitches. With it, no cast exceeded ~21ms.
+The previous Aegis first-cast spike measured **123.4ms**; after the real-wizard
+shield warm-up it is **19–20ms**. Without the warm-up, the first cast/battle
+frame was the visible hitch.
+
+## Render pass detail
+
+The spikes the profiler labels **Render 3D Depth** and **Render 3D Transparent**
+were first-use pipeline compilation plus scene churn:
+
+- The offscreen SubViewport warm-up did not share all main-viewport pipeline
+  state (notably MSAA), so the real pass still compiled on first use.
+- Adding an `OmniLight3D` per projectile changed the light list and forced extra
+  depth/transparent work.
+- Each cast allocated new transparent materials and particle materials.
+
+Now the warm-up uses the real viewport and the scene's light/material set is
+stable, so those passes compile during the boot screen and stay warm.
 
 ## Reproduce
 

@@ -96,7 +96,7 @@ func _boot() -> void:
 
 	var warm := SpellWarmup.new()
 	add_child(warm)
-	await warm.run()
+	await warm.run(world)
 	warm.queue_free()
 
 	loading.queue_free()
@@ -267,6 +267,12 @@ func _build_duel() -> void:
 	enemy.setup("RIVAL", Game.loadout_kit(Game.enemy_loadout), enemy_pages_now, false)
 	arena.add_wizard(enemy)
 	enemy.global_position = arena.spawn_position(1)
+
+	# The shield bubble is hidden until the first Aegis. Show it for a few frames
+	# on the real round wizards so its per-wizard material/pipeline is compiled
+	# before a player can cast it.
+	player.add_shield(1.0, 0.08, player.wand.get("color", Color("8fe7ff")))
+	enemy.add_shield(1.0, 0.08, enemy.wand.get("color", Color("8fe7ff")))
 
 	player.cast_fired.connect(_on_cast)
 	enemy.cast_fired.connect(_on_cast)

@@ -49,13 +49,6 @@ func setup(p_color: Color, p_duration: float = 7.0, p_size: Vector3 = Vector3(2.
 		trim.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_OFF
 		add_child(trim)
 
-	var light := OmniLight3D.new()
-	light.light_color = color
-	light.light_energy = 1.1
-	light.omni_range = 4.0
-	light.position = Vector3(0, 1.2, 0)
-	add_child(light)
-
 
 func _process(delta: float) -> void:
 	duration -= delta
