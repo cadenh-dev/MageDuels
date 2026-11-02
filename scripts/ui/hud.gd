@@ -37,6 +37,7 @@ var _toast_tween: Tween
 var _damage_flash: ColorRect
 var _flash_tween: Tween
 var _pause_root: Control
+var _coach: Coach
 var _last_page := -1
 var _rival_channel: Label
 
@@ -80,6 +81,7 @@ func _build() -> void:
 	_build_toast()
 	_build_flash()
 	_build_pause()
+	_build_coach()
 
 	_last_page = -1
 	_refresh_slots()
@@ -405,6 +407,16 @@ func set_paused(paused: bool) -> void:
 	_pause_root.visible = paused
 
 
+func _build_coach() -> void:
+	if Game.round_index != 0:
+		return
+	_coach = Coach.new()
+	_coach.player = player
+	_coach.set_anchors_and_offsets_preset(Control.PRESET_TOP_LEFT)
+	_coach.position = Vector2(24, 126)
+	_root.add_child(_coach)
+
+
 func _process(_delta: float) -> void:
 	if player == null or not is_instance_valid(player):
 		return
@@ -413,6 +425,8 @@ func _process(_delta: float) -> void:
 	_update_round_info()
 	_refresh_chant()
 	_update_rival_channel()
+	if _coach != null and is_instance_valid(_coach):
+		_coach.update(_delta)
 
 
 func _update_bars() -> void:

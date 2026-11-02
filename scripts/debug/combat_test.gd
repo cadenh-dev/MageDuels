@@ -127,6 +127,7 @@ func run() -> int:
 	p.mana = p.max_mana
 	p.cooldowns = [0.0, 0.0, 0.0, 0.0]
 	_check("chant starts again", p.begin_chant(0))
+	await _wait(0.25)
 	p.take_damage(5.0, "void", Vector3.ZERO, 0.0)
 	_check("direct damage interrupts chant", not p.chanting)
 

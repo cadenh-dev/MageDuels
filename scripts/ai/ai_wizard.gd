@@ -76,6 +76,8 @@ var _typing_timer := 0.0
 var _typing_interval := 0.11
 var _chant_timeout := 0.0
 var _page_swap_timer := 9.0
+var _aim_offset := Vector3.ZERO
+var _aim_timer := 0.0
 
 
 static func title_for(wand_id: String) -> String:
@@ -105,7 +107,11 @@ func _process(delta: float) -> void:
 		wizard.set_ai_move(Vector3.ZERO)
 		return
 
-	wizard.set_aim_world(target.global_position + target.velocity * 0.14)
+	wizard.set_aim_world(target.global_position + target.velocity * 0.14 + _aim_offset)
+	_aim_timer -= delta
+	if _aim_timer <= 0.0:
+		_aim_timer = randf_range(0.35, 0.7)
+		_aim_offset = Vector3(randf_range(-0.7, 0.7), 0.0, randf_range(-0.7, 0.7))
 
 	_cast_timer -= delta
 	_chant_cooldown -= delta
@@ -218,8 +224,13 @@ func _try_begin_chant() -> bool:
 	if options.is_empty():
 		return false
 
+	var chant_scores: Dictionary = {}
+	for slot in options:
+		chant_scores[slot] = _score_spell(wizard.current_spell(slot))
 	options.sort_custom(func(a: int, b: int) -> bool:
-		return _score_spell(wizard.current_spell(a)) > _score_spell(wizard.current_spell(b))
+		if is_equal_approx(float(chant_scores[a]), float(chant_scores[b])):
+			return a < b
+		return float(chant_scores[a]) > float(chant_scores[b])
 	)
 	_chant_slot = options[0]
 	if not wizard.begin_chant(_chant_slot):
@@ -247,8 +258,13 @@ func _quick_cast() -> void:
 	if options.is_empty():
 		return
 
+	var scores: Dictionary = {}
+	for slot in options:
+		scores[slot] = _score_spell(wizard.current_spell(slot))
 	options.sort_custom(func(a: int, b: int) -> bool:
-		return _score_spell(wizard.current_spell(a)) > _score_spell(wizard.current_spell(b))
+		if is_equal_approx(float(scores[a]), float(scores[b])):
+			return a < b
+		return float(scores[a]) > float(scores[b])
 	)
 
 	if wizard.hp / wizard.max_hp < 0.45 and randf() < 0.4:

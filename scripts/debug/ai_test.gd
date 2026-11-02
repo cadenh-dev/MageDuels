@@ -40,8 +40,11 @@ func run(p_main: Node) -> int:
 	main.ai.state = AIWizard.State.MOVE
 	if not await _until(func() -> bool: return main.enemy.chanting, 10.0, "rival starts a second chant"):
 		return _finish()
+	await get_tree().create_timer(0.25, false).timeout
 	main.enemy.take_damage(1.0, "void", main.player.global_position, 0.0)
-	_check("direct damage interrupts rival", not main.enemy.chanting)
+	_check("chip damage does not break chant", main.enemy.chanting)
+	main.enemy.take_damage(12.0, "void", main.player.global_position, 0.0)
+	_check("direct hit interrupts rival", not main.enemy.chanting)
 	await get_tree().create_timer(0.15, false).timeout
 	_check("rival leaves the chant state", main.ai.state != AIWizard.State.WINDUP and main.ai.state != AIWizard.State.TYPING, "state=%d" % main.ai.state)
 

@@ -396,6 +396,7 @@ func _wire_wizard(node: Node, id: int) -> void:
 	_connect_signal(node, "damaged", _on_damaged)
 	_connect_signal(node, "died", _on_died)
 	_connect_signal(node, "chant_changed", _on_chant_changed)
+	_connect_signal(node, "chant_interrupted", _on_chant_interrupted)
 	_wizards[id] = {
 		"ref": weakref(node),
 		"page": int(node.page),
@@ -494,6 +495,21 @@ func _on_chant_changed(wizard: Node, active: bool) -> void:
 			st["ended_ms"] = Time.get_ticks_msec()
 		st["was_chanting"] = false
 		st["chant_len"] = 0
+
+
+func _on_chant_interrupted(wizard: Node) -> void:
+	if not is_instance_valid(wizard):
+		return
+	play("chant_fail", "SFX", -3.0)
+	var id := wizard.get_instance_id()
+	if _wizards.has(id):
+		var st: Dictionary = _wizards[id]
+		# Never let the following _on_chant_changed(false) read as a completed cast.
+		st["ended_ms"] = -9999
+		st["was_chanting"] = false
+		st["chant_len"] = 0
+	if bool(wizard.is_player):
+		set_chanting(false)
 
 
 func _poll_game() -> void:

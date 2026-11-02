@@ -15,6 +15,9 @@ var duel_active := false
 var round_running := false
 var is_paused := false
 
+const STALL_MS := 20000
+var _last_action_ms := 0
+
 
 func _ready() -> void:
 	process_mode = Node.PROCESS_MODE_ALWAYS
@@ -48,6 +51,17 @@ func _ready() -> void:
 		var ai_code: int = await ai_test.run(self)
 		get_tree().quit(ai_code)
 		return
+	if "--balance" in args:
+		var balance := BalanceTest.new()
+		add_child(balance)
+		get_tree().quit(balance.run())
+		return
+	if "--input" in args:
+		var input_test := InputTest.new()
+		add_child(input_test)
+		var input_code: int = await input_test.run(self)
+		get_tree().quit(input_code)
+		return
 	if "--test" in args:
 		var tester := CombatTest.new()
 		add_child(tester)
@@ -67,11 +81,16 @@ func _ready() -> void:
 # --------------------------------------------------------------------------
 
 func _swap_screen(screen: Control) -> void:
+	_clear_screen()
+	current_screen = screen
+	screens.add_child(screen)
+
+
+func _clear_screen() -> void:
 	if current_screen != null and is_instance_valid(current_screen):
 		screens.remove_child(current_screen)
 		current_screen.queue_free()
-	current_screen = screen
-	screens.add_child(screen)
+	current_screen = null
 
 
 func show_menu() -> void:
@@ -116,6 +135,7 @@ func show_craft() -> void:
 
 func start_match() -> void:
 	_reset_pause()
+	_clear_screen()
 	_clear_duel()
 	Game.reset_match("ai")
 	if Game.enemy_pages.is_empty():
@@ -170,6 +190,8 @@ func _build_duel() -> void:
 	enemy.cast_fired.connect(_on_cast)
 	player.died.connect(_on_death)
 	enemy.died.connect(_on_death)
+	player.damaged.connect(func(_w: Wizard, _a: float) -> void: _mark_action())
+	enemy.damaged.connect(func(_w: Wizard, _a: float) -> void: _mark_action())
 
 	hud = DuelHUD.new()
 	hud.setup(player, enemy, arena)
@@ -207,6 +229,7 @@ func _run_round_flow() -> void:
 	player.input_enabled = true
 	ai.active = true
 	duel_active = true
+	_last_action_ms = Time.get_ticks_msec()
 
 
 func _clear_duel() -> void:
@@ -227,8 +250,27 @@ func _clear_duel() -> void:
 
 
 func _on_cast(caster: Wizard, spell: SpellDef, stats: Dictionary, origin: Vector3, direction: Vector3) -> void:
+	_mark_action()
 	if arena != null and is_instance_valid(arena):
 		arena.spawn_spell(caster, spell, stats, origin, direction)
+
+
+func _mark_action() -> void:
+	_last_action_ms = Time.get_ticks_msec()
+
+
+func _resolve_stall() -> void:
+	if not duel_active or not round_running or player == null or enemy == null:
+		return
+	if not player.is_alive() or not enemy.is_alive():
+		return
+	_mark_action()
+	if hud != null and is_instance_valid(hud):
+		hud.announce("THE ARENA STIRS", "A stall is broken.", UIKit.GOLD, 0.8)
+	var victim := player
+	if player.hp / player.max_hp > enemy.hp / enemy.max_hp:
+		victim = enemy
+	victim.take_damage(9999.0, "arcane", Vector3.ZERO, 0.0)
 
 
 func _on_death(wiz: Wizard) -> void:
@@ -261,6 +303,10 @@ func _on_death(wiz: Wizard) -> void:
 # --------------------------------------------------------------------------
 
 func _process(_delta: float) -> void:
+	if duel_active and not is_paused and _last_action_ms > 0:
+		if Time.get_ticks_msec() - _last_action_ms > STALL_MS:
+			_resolve_stall()
+
 	if not duel_active or player == null or not is_instance_valid(player) or not player.is_alive() or is_paused:
 		if arena != null and is_instance_valid(arena):
 			arena.set_reticle(Vector3.ZERO, Color.WHITE, false)
@@ -280,6 +326,11 @@ func _process(_delta: float) -> void:
 
 
 func _unhandled_input(event: InputEvent) -> void:
+	if event is InputEventKey:
+		var any_key := event as InputEventKey
+		if any_key.ctrl_pressed or any_key.meta_pressed:
+			return
+
 	if player != null and is_instance_valid(player) and player.chanting and duel_active and not is_paused:
 		if event is InputEventKey:
 			var key := event as InputEventKey

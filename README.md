@@ -57,6 +57,9 @@ godot --headless --path . -- --test      # spell math, wall/beam/nova, interrupt
 godot --headless --path . -- --flow      # round 1 -> round 2 -> match end -> rematch
 godot --headless --path . -- --lifetime  # 10 duel rebuilds, orphan check
 godot --headless --path . -- --ai        # rival telegraph, completion, interrupt
+godot --headless --path . -- --input     # unicode typing, Enter, Shift, rooting
+godot --headless --path . -- --balance   # all wand x rune stat combinations
+godot --headless --path . -- --audio-selftest
 ```
 
 ### Web export
@@ -86,4 +89,6 @@ design/           game design and jam plan
 - Fonts: [Cinzel](https://fonts.google.com/specimen/Cinzel) and
   [Rajdhani](https://fonts.google.com/specimen/Rajdhani), SIL Open Font License
   (see `assets/fonts/OFL-*.txt`).
+- Audio: synthesized procedurally at startup (SFX, chant ladder, adaptive music
+  bed) into `AudioStreamWAV` banks — no third-party samples.
 - Everything else is procedural or generated in-engine.

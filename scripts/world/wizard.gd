@@ -593,7 +593,7 @@ func _tick_timers(delta: float) -> void:
 func take_damage(amount: float, element: String, source_pos: Vector3, knockback: float = 0.0, apply_status: bool = true) -> void:
 	if not alive:
 		return
-	if chanting:
+	if chanting and amount >= 5.0 and chant_elapsed >= 0.15:
 		cancel_chant()
 		chant_interrupted.emit(self)
 	_apply_direct_damage(amount, _element_color(element), true)
