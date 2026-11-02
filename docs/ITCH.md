@@ -44,8 +44,16 @@ wizard, duel, typing, spell-crafting, runes, 2.5d, web, godot, fantasy, strategy
 | `1`–`4` | Quickcast the spell in that slot |
 | `Space` | Begin chanting the selected spell |
 | Type + `Enter` | Complete the incantation → Overcast |
-| `Shift` | Swap spell page (A ↔ B) |
-| `Esc` | Pause; cancel a chant while chanting |
+| `F` / Right Mouse / `LT` (hold) | Assisted overcast — auto-casts after 1.4s |
+| Mouse wheel | Cycle the selected spell slot |
+| `Shift` / `RB` | Swap spell page (A ↔ B) |
+| `Esc` / `Start` | Pause; cancel a chant while chanting |
+
+**Gamepad:** left stick move, right stick aim, `A/B/X/Y` cast slots 1–4, `RB`
+swap page, `LT` assisted overcast, `Start` pause. Release `LT` in the gold window
+for a PERFECT overcast, or hold to 1.4s to auto-cast. Menus navigate with the D-pad
+or left stick and `A`. The title screen's **QUICK DUEL** button skips wand select
+and crafting for a one-button start.
 
 ## Credits
 

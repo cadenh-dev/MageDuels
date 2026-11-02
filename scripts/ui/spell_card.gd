@@ -25,9 +25,12 @@ var _note: Label
 
 func _ready() -> void:
 	mouse_filter = Control.MOUSE_FILTER_STOP
+	focus_mode = Control.FOCUS_ALL
 	custom_minimum_size = Vector2(200, 104) if not compact else Vector2(170, 76)
 	mouse_entered.connect(func() -> void: hovered = true)
 	mouse_exited.connect(func() -> void: hovered = false)
+	focus_entered.connect(queue_redraw)
+	focus_exited.connect(queue_redraw)
 	_build_ui()
 	_refresh()
 
@@ -122,6 +125,9 @@ func _draw() -> void:
 		bg = Color(accent.r, accent.g, accent.b, 0.10).blend(UIKit.PANEL)
 	elif spell != null:
 		border = Color(accent.r, accent.g, accent.b, 0.28)
+	if has_focus():
+		border = accent.lightened(0.25)
+		bw = 2
 
 	var sb := StyleBoxFlat.new()
 	sb.bg_color = bg
@@ -152,6 +158,10 @@ func _draw() -> void:
 
 
 func _gui_input(event: InputEvent) -> void:
+	if event.is_action_pressed("ui_accept"):
+		pressed.emit(self)
+		accept_event()
+		return
 	if event is InputEventMouseButton:
 		var mb := event as InputEventMouseButton
 		if mb.button_index == MOUSE_BUTTON_LEFT and mb.pressed:

@@ -20,7 +20,7 @@ const STEPS := [
 	["MOVE", "WASD slips you around incoming spells."],
 	["QUICKCAST", "Press 1–4 to fire the highlighted spell instantly."],
 	["SHIFT", "Tap SHIFT to swap between your two spell pages."],
-	["CHANT", "SPACE, then type the gold runes and press ENTER. Direct hits break it."],
+	["CHANT", "SPACE, then type the gold runes and press ENTER. Direct hits break it. Hold RMB / LT to auto-cast instead."],
 ]
 
 

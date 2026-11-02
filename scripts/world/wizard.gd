@@ -16,6 +16,8 @@ signal damaged(wizard, amount)
 const ARENA_RADIUS := 8.1
 const HIT_HEIGHT := 0.9
 const CHANT_MIN_TIME := 0.9
+const CHANT_ASSIST_TIME := 1.4
+const CHANT_PERFECT_END := 1.2
 
 var wizard_name := "Wizard"
 var is_player := false
@@ -45,6 +47,7 @@ var chant_slot := -1
 var chant_text := ""
 var chant_typos := 0
 var chant_elapsed := 0.0
+var assisted_chant := false
 
 var burn_time := 0.0
 var burn_total := 0.0
@@ -359,7 +362,14 @@ func _physics_process(delta: float) -> void:
 	if is_player and input_enabled and not chanting and stun_time <= 0.0:
 		var x := Input.get_axis("move_left", "move_right")
 		var f := Input.get_axis("move_back", "move_forward")
-		move = Vector3(x, 0, -f).limit_length(1.0)
+		move = Vector3(x, 0, -f)
+		var pads := Input.get_connected_joypads()
+		if not pads.is_empty():
+			var jx := Input.get_joy_axis(pads[0], JOY_AXIS_LEFT_X)
+			var jy := Input.get_joy_axis(pads[0], JOY_AXIS_LEFT_Y)
+			if absf(jx) > 0.15 or absf(jy) > 0.15:
+				move += Vector3(jx, 0, jy)
+		move = move.limit_length(1.0)
 	elif not is_player and not chanting:
 		move = _ai_move.limit_length(1.0)
 
@@ -452,7 +462,7 @@ func quickcast(slot: int) -> bool:
 	return true
 
 
-func begin_chant(slot: int) -> bool:
+func begin_chant(slot: int, p_assisted: bool = false) -> bool:
 	if chanting or not alive or not input_enabled:
 		return false
 	var check := can_cast(slot, true)
@@ -460,6 +470,7 @@ func begin_chant(slot: int) -> bool:
 		cast_blocked.emit(self, str(check["reason"]))
 		return false
 	chanting = true
+	assisted_chant = p_assisted
 	chant_slot = slot
 	chant_text = ""
 	chant_typos = 0
@@ -474,6 +485,7 @@ func begin_chant(slot: int) -> bool:
 func chant_key(character: String) -> void:
 	if not chanting:
 		return
+	assisted_chant = false
 	var spell := current_spell(chant_slot)
 	if spell == null:
 		cancel_chant()
@@ -518,13 +530,44 @@ func chant_finish() -> void:
 
 
 func chant_progress() -> float:
-	return clampf(chant_elapsed / CHANT_MIN_TIME, 0.0, 1.0)
+	var span := CHANT_ASSIST_TIME if assisted_chant else CHANT_MIN_TIME
+	return clampf(chant_elapsed / span, 0.0, 1.0)
+
+
+func _finish_assisted() -> void:
+	if not chanting:
+		return
+	var check := can_cast(chant_slot, true)
+	if not bool(check["ok"]):
+		cast_blocked.emit(self, str(check["reason"]))
+		cancel_chant()
+		return
+	_do_cast(chant_slot, true, check, false)
+
+
+## Release the assisted hold. Releasing before 0.9s cancels; releasing in the
+## 0.9-1.2s gold window is a perfect cast; releasing later still casts, but slower.
+func assist_release() -> bool:
+	if not chanting or not assisted_chant:
+		return false
+	if chant_elapsed < CHANT_MIN_TIME:
+		cancel_chant()
+		return false
+	var perfect := chant_elapsed <= CHANT_PERFECT_END
+	var check := can_cast(chant_slot, true)
+	if not bool(check["ok"]):
+		cast_blocked.emit(self, str(check["reason"]))
+		cancel_chant()
+		return false
+	_do_cast(chant_slot, true, check, perfect)
+	return true
 
 
 func cancel_chant() -> void:
 	if not chanting:
 		return
 	chanting = false
+	assisted_chant = false
 	chant_slot = -1
 	chant_text = ""
 	chant_elapsed = 0.0
@@ -532,9 +575,10 @@ func cancel_chant() -> void:
 	chant_changed.emit(self, false)
 
 
-func _do_cast(slot: int, overcast: bool, check: Dictionary) -> void:
+func _do_cast(slot: int, overcast: bool, check: Dictionary, perfect: bool = false) -> void:
 	var spell: SpellDef = check["spell"]
 	var stats: Dictionary = check["stats"]
+	stats["perfect"] = perfect
 	mana = maxf(0.0, mana - float(stats["mana"]))
 	cooldowns[slot] = float(stats["cooldown"])
 	cooldown_max[slot] = maxf(0.1, float(stats["cooldown"]))
@@ -547,6 +591,7 @@ func _do_cast(slot: int, overcast: bool, check: Dictionary) -> void:
 	if _staff_light != null:
 		_staff_light.light_energy = 4.0
 	chanting = false
+	assisted_chant = false
 	chant_slot = -1
 	chant_text = ""
 	chant_elapsed = 0.0
@@ -586,6 +631,8 @@ func _tick_timers(delta: float) -> void:
 			cancel_chant()
 	if chanting:
 		chant_elapsed += delta
+		if assisted_chant and chant_text.is_empty() and chant_elapsed >= CHANT_ASSIST_TIME:
+			_finish_assisted()
 
 
 # ---- Damage --------------------------------------------------------------

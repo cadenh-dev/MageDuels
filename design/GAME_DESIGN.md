@@ -41,12 +41,19 @@ Shift your spellbook. Shift your feet. Shift the duel.
 | 1–4 | Quickcast spell in that slot (weak, full cost) |
 | Space | Begin chanting the last-selected spell |
 | Type + Enter | Complete the incantation → Overcast |
-| Shift (hold/tap) | Swap spell page |
-| Esc | Pause |
+| F / RMB / LT (hold) | Assisted overcast — 1.4s, no typing |
+| Mouse wheel | Cycle selected spell slot |
+| Shift / RB | Swap spell page |
+| Esc / Start | Pause |
+
+**Gamepad:** left stick move, right stick aim, face buttons cast, `LT` assisted
+overcast, `RB` swap, `Start` pause. Menus navigate with D-pad/stick + `A`.
+Releasing `LT` in the 0.9–1.2s gold window is a PERFECT overcast.
 
 While chanting you are **rooted**. Movement and quickcast are locked until the
 incantation completes or is cancelled. A chant needs 0.9s of hold time and is
-**interrupted by direct damage**, so it is a wager, not a discount.
+**interrupted by direct damage**, so it is a wager, not a discount. The 1.4s
+assisted hold is the accessible alternative to typing.
 
 ### Runes
 

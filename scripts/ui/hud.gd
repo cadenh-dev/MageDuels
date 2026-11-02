@@ -30,6 +30,8 @@ var _chant_panel: PanelContainer
 var _chant_title: Label
 var _chant_text: RichTextLabel
 var _chant_progress: ProgressBar
+var _chant_zone: ColorRect
+var _chant_hint: Label
 var _toast: Label
 var _toast_sub: Label
 var _toast_box: VBoxContainer
@@ -37,6 +39,7 @@ var _toast_tween: Tween
 var _damage_flash: ColorRect
 var _flash_tween: Tween
 var _pause_root: Control
+var _resume_button: Button
 var _coach: Coach
 var _last_page := -1
 var _rival_channel: Label
@@ -59,6 +62,7 @@ func connect_wizards() -> void:
 	if player != null:
 		player.damaged.connect(_on_player_damaged)
 		player.cast_blocked.connect(_on_cast_blocked)
+		player.cast_fired.connect(_on_player_cast)
 		player.chant_changed.connect(func(_w, _a) -> void: _refresh_chant())
 		player.chant_interrupted.connect(_on_chant_interrupted)
 	if enemy != null:
@@ -269,7 +273,7 @@ func _build_bottom_bar() -> void:
 	hint_panel.custom_minimum_size = Vector2(0, 0)
 	hint_panel.mouse_filter = Control.MOUSE_FILTER_IGNORE
 	_root.add_child(hint_panel)
-	var hint := UIKit.label("WASD · AIM · 1-4 · SPACE · SHIFT", 11, UIKit.MUTED)
+	var hint := UIKit.label("WASD · MOUSE · 1-4 · SPACE/RMB · SHIFT", 11, UIKit.MUTED)
 	hint.mouse_filter = Control.MOUSE_FILTER_IGNORE
 	hint_panel.add_child(hint)
 
@@ -329,10 +333,23 @@ func _build_chant() -> void:
 	_chant_progress.add_theme_stylebox_override("fill", fill)
 	box.add_child(_chant_progress)
 
-	var hint := UIKit.label("ENTER unleash  ·  ESC cancel  ·  hold the runes for 0.9s", 12, UIKit.DIM)
-	hint.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
-	hint.mouse_filter = Control.MOUSE_FILTER_IGNORE
-	box.add_child(hint)
+	_chant_zone = ColorRect.new()
+	_chant_zone.color = Color(1.0, 0.82, 0.4, 0.38)
+	_chant_zone.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	_chant_zone.set_anchors_preset(Control.PRESET_FULL_RECT)
+	_chant_zone.anchor_left = 0.643
+	_chant_zone.anchor_right = 0.857
+	_chant_zone.offset_left = 0
+	_chant_zone.offset_right = 0
+	_chant_zone.offset_top = 0
+	_chant_zone.offset_bottom = 0
+	_chant_zone.visible = false
+	_chant_progress.add_child(_chant_zone)
+
+	_chant_hint = UIKit.label("ENTER unleash  ·  ESC cancel  ·  hold the runes for 0.9s", 12, UIKit.DIM)
+	_chant_hint.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
+	_chant_hint.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	box.add_child(_chant_hint)
 
 
 func _build_toast() -> void:
@@ -411,6 +428,7 @@ func _build_pause() -> void:
 	var resume := UIKit.button("RESUME", 22)
 	resume.pressed.connect(func() -> void: pause_resume.emit())
 	box.add_child(resume)
+	_resume_button = resume
 
 	var quit := UIKit.ghost_button("QUIT TO MENU", 18)
 	quit.pressed.connect(func() -> void: pause_quit.emit())
@@ -419,6 +437,10 @@ func _build_pause() -> void:
 
 func set_paused(paused: bool) -> void:
 	_pause_root.visible = paused
+	if paused and _resume_button != null:
+		_resume_button.grab_focus()
+	elif _resume_button != null:
+		_resume_button.release_focus()
 
 
 func _build_coach() -> void:
@@ -512,25 +534,33 @@ func _refresh_chant() -> void:
 	var spell := player.current_spell(player.chant_slot)
 	if spell == null:
 		return
-	_chant_title.text = "CHANTING  ·  %s" % spell.display_name()
+	if player.assisted_chant:
+		_chant_title.text = "ASSISTED OVERCAST  ·  %s" % spell.display_name()
+		_chant_text.text = "[color=#ffd166]%s[/color]" % spell.incantation()
+		_chant_hint.text = "Release in the gold window for PERFECT  ·  hold to 1.4s to auto"
+	else:
+		_chant_title.text = "CHANTING  ·  %s" % spell.display_name()
+		_chant_hint.text = "ENTER unleash  ·  ESC cancel  ·  hold the runes for 0.9s"
+		var target := spell.incantation()
+		var typed := player.chant_text.length()
+		var count := 0
+		var out := ""
+		for ch in target:
+			if ch == " ":
+				out += "  "
+				continue
+			if count < typed:
+				out += "[color=#ffd166]%s[/color]" % ch
+			else:
+				out += "[color=#5f567d]%s[/color]" % ch
+			count += 1
+		_chant_text.text = out
 	_chant_progress.value = player.chant_progress()
+	if _chant_zone != null:
+		_chant_zone.visible = player.assisted_chant
 	var fill_style := _chant_progress.get_theme_stylebox("fill") as StyleBoxFlat
 	if fill_style != null:
 		fill_style.bg_color = UIKit.GOLD if player.chant_progress() >= 1.0 else UIKit.ACCENT_DARK
-	var target := spell.incantation()
-	var typed := player.chant_text.length()
-	var count := 0
-	var out := ""
-	for ch in target:
-		if ch == " ":
-			out += "  "
-			continue
-		if count < typed:
-			out += "[color=#ffd166]%s[/color]" % ch
-		else:
-			out += "[color=#5f567d]%s[/color]" % ch
-		count += 1
-	_chant_text.text = out
 
 
 func _update_rival_channel() -> void:
@@ -549,6 +579,11 @@ func _on_chant_interrupted(wiz: Wizard) -> void:
 		show_message("CHANT INTERRUPTED", UIKit.DANGER, 0.9)
 	else:
 		show_message("RIVAL'S CHANT BROKEN", UIKit.GOLD, 0.9)
+
+
+func _on_player_cast(_wiz: Wizard, _spell: SpellDef, stats: Dictionary, _origin: Vector3, _direction: Vector3) -> void:
+	if bool(stats.get("perfect", false)):
+		show_message("PERFECT OVERCAST", UIKit.GOLD, 0.8)
 
 
 func _on_player_damaged(_wiz: Wizard, _amount: float) -> void:

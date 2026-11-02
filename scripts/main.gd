@@ -17,6 +17,7 @@ var is_paused := false
 
 const STALL_MS := 20000
 var _last_action_ms := 0
+var _pad_aim := Vector2.RIGHT
 
 
 func _ready() -> void:
@@ -68,7 +69,7 @@ func _ready() -> void:
 		var code: int = await tester.run()
 		get_tree().quit(code)
 		return
-	for mode in ["--shot-menu", "--shot-wand", "--shot-craft", "--shot-duel", "--shot-chant", "--shot-result"]:
+	for mode in ["--shot-menu", "--shot-wand", "--shot-craft", "--shot-duel", "--shot-chant", "--shot-assist", "--shot-result"]:
 		if mode in args:
 			await _debug_shot(mode)
 			return
@@ -98,6 +99,7 @@ func show_menu() -> void:
 	_clear_duel()
 	var menu := MenuScreen.new()
 	menu.play_pressed.connect(_on_play_pressed)
+	menu.quick_duel_pressed.connect(_on_quick_duel)
 	menu.how_pressed.connect(menu.show_how)
 	menu.quit_pressed.connect(func() -> void: get_tree().quit())
 	_swap_screen(menu)
@@ -105,6 +107,14 @@ func show_menu() -> void:
 
 func _on_play_pressed() -> void:
 	show_wand()
+
+
+func _on_quick_duel() -> void:
+	Game.player_wand = "emberwood"
+	Game.player_pages = SpellData.default_pages(Game.player_wand)
+	Game.enemy_wand = _pick_enemy_wand()
+	Game.enemy_pages = SpellData.default_pages(Game.enemy_wand)
+	start_match()
 
 
 func show_wand() -> void:
@@ -313,6 +323,22 @@ func _process(_delta: float) -> void:
 		return
 	if arena == null or not is_instance_valid(arena) or arena.camera == null:
 		return
+
+	var color: Color = player.wand.get("color", UIKit.ACCENT)
+	if Game.input_mode == "pad":
+		var pads := Input.get_connected_joypads()
+		if not pads.is_empty():
+			var v := Vector2(
+				Input.get_joy_axis(pads[0], JOY_AXIS_RIGHT_X),
+				Input.get_joy_axis(pads[0], JOY_AXIS_RIGHT_Y)
+			)
+			if v.length() > 0.25:
+				_pad_aim = v.normalized()
+			var point := player.global_position + Vector3(_pad_aim.x, 0.0, _pad_aim.y) * 9.0
+			player.set_aim_world(point)
+			arena.set_reticle(point, color, true)
+			return
+
 	var mouse := get_viewport().get_mouse_position()
 	var from := arena.camera.project_ray_origin(mouse)
 	var dir := arena.camera.project_ray_normal(mouse)
@@ -321,11 +347,25 @@ func _process(_delta: float) -> void:
 	if hit is Vector3:
 		var point: Vector3 = hit
 		player.set_aim_world(point)
-		var color: Color = player.wand.get("color", UIKit.ACCENT)
 		arena.set_reticle(point, color, true)
 
 
+func _input(event: InputEvent) -> void:
+	if event is InputEventJoypadButton or event is InputEventJoypadMotion:
+		Game.input_mode = "pad"
+	elif event is InputEventKey or event is InputEventMouseMotion or event is InputEventMouseButton:
+		Game.input_mode = "kb"
+
+
 func _unhandled_input(event: InputEvent) -> void:
+	# Assisted overcast is hold-and-release, so catch the release before the chant
+	# keyboard block below swallows it.
+	if player != null and is_instance_valid(player) and player.assisted_chant and duel_active and not is_paused:
+		if event.is_action_released("assist_chant"):
+			player.assist_release()
+			get_viewport().set_input_as_handled()
+			return
+
 	if event is InputEventKey:
 		var any_key := event as InputEventKey
 		if any_key.ctrl_pressed or any_key.meta_pressed:
@@ -375,6 +415,13 @@ func _unhandled_input(event: InputEvent) -> void:
 	elif event.is_action_pressed("chant"):
 		if not player.chanting:
 			player.begin_chant(player.selected_slot)
+	elif event.is_action_pressed("assist_chant"):
+		if not player.chanting:
+			player.begin_chant(player.selected_slot, true)
+	elif event.is_action_pressed("cycle_next"):
+		player.selected_slot = (player.selected_slot + 1) % 4
+	elif event.is_action_pressed("cycle_prev"):
+		player.selected_slot = (player.selected_slot + 3) % 4
 	elif event.is_action_pressed("swap_page"):
 		player.swap_page()
 
@@ -451,6 +498,12 @@ func _debug_shot(mode: String) -> void:
 			player.input_enabled = true
 			ai.active = true
 			ai._chant_cooldown = 0.0
+		"--shot-assist":
+			Game.reset_match("ai")
+			_build_duel()
+			player.input_enabled = true
+			ai.active = false
+			player.begin_chant(0, true)
 		"--shot-result":
 			Game.player_score = 2
 			Game.enemy_score = 1

@@ -83,6 +83,8 @@ func _ready() -> void:
 	root.add_child(_build_footer())
 	_select_slot(0, 0)
 	_refresh_all()
+	if not _cards.is_empty() and not _cards[0].is_empty():
+		_cards[0][0].grab_focus()
 
 
 func _copy_pages(source: Array) -> Array:

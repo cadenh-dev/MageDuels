@@ -26,11 +26,20 @@ Made with Godot 4.7.2. Browser-first, procedural art, no external gameplay asset
 | `1`–`4` | Quickcast the spell in that slot |
 | `Space` | Begin chanting the selected spell |
 | Type + `Enter` | Complete the incantation → **Overcast** |
-| `Shift` | Swap spell page (A ↔ B) |
-| `Esc` | Pause / cancel a chant |
+| `F` / Right Mouse / `LT` (hold) | **Assisted overcast** — auto-casts after 1.4s, no typing |
+| Mouse wheel | Cycle the selected spell slot |
+| `Shift` / `RB` | Swap spell page (A ↔ B) |
+| `Esc` / `Start` | Pause / cancel a chant |
+
+**Gamepad:** left stick moves, right stick aims, `A/B/X/Y` cast slots 1–4, `RB`
+swaps pages, `LT` holds an assisted overcast, `Start` pauses. Menus are navigable
+with the D-pad or left stick and `A`.
 
 A chant roots you for at least **0.9 seconds**, costs full mana, deals **+80%**
-damage, and is **broken by any direct hit**. The rival follows the same rules.
+damage, and is **broken by any direct hit**. Typing is the fast/high-skill route;
+the 1.4s hold is the accessible route. Releasing the hold in the **gold window
+(0.9–1.2s)** is a **PERFECT overcast** and fires sooner, so the pad has a hard
+mode as well. The rival follows the same rules.
 
 ### The runes
 

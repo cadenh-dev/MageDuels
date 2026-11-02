@@ -2,10 +2,13 @@ class_name MenuScreen
 extends Control
 
 signal play_pressed
+signal quick_duel_pressed
 signal how_pressed
 signal quit_pressed
 
 var _how_root: Control
+var _play_button: Button
+var _how_close: Button
 
 
 func _ready() -> void:
@@ -52,6 +55,13 @@ func _ready() -> void:
 	play.custom_minimum_size = Vector2(470, 58)
 	play.pressed.connect(func() -> void: play_pressed.emit())
 	box.add_child(play)
+	_play_button = play
+
+	var quick := UIKit.button("QUICK DUEL  ·  DEFAULTS", 19, UIKit.GOLD)
+	quick.custom_minimum_size = Vector2(470, 48)
+	quick.tooltip_text = "Skip wand select and crafting: Emberwood with the default spellbook."
+	quick.pressed.connect(func() -> void: quick_duel_pressed.emit())
+	box.add_child(quick)
 
 	var how := UIKit.ghost_button("HOW TO PLAY", 19)
 	how.custom_minimum_size = Vector2(470, 48)
@@ -82,6 +92,7 @@ func _ready() -> void:
 
 	_how_root = _build_how_overlay()
 	add_child(_how_root)
+	play.grab_focus()
 
 
 func _build_how_overlay() -> Control:
@@ -140,18 +151,23 @@ func _build_how_overlay() -> Control:
 	var close := UIKit.button("GOT IT", 20)
 	close.pressed.connect(hide_how)
 	box.add_child(close)
+	_how_close = close
 	return root
 
 
 func show_how() -> void:
 	_how_root.visible = true
 	_how_root.modulate.a = 0.0
+	if _how_close != null:
+		_how_close.grab_focus()
 	var tween := create_tween()
 	tween.tween_property(_how_root, "modulate:a", 1.0, 0.15)
 
 
 func hide_how() -> void:
 	_how_root.visible = false
+	if _play_button != null:
+		_play_button.grab_focus()
 
 
 func _unhandled_input(event: InputEvent) -> void:

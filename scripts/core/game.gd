@@ -20,6 +20,7 @@ var last_result: String = ""
 
 var ui_scale: float = 1.0
 var master_volume_db: float = 0.0
+var input_mode := "kb" ## "kb" | "pad"
 
 
 func _ready() -> void:
@@ -92,6 +93,24 @@ func _install_input_map() -> void:
 	_add_keys("quick_swap", [KEY_Q])
 	_add_mouse("cast_mouse", MOUSE_BUTTON_LEFT)
 
+	# Assisted overcast: hold RMB / F / left trigger for 1.4s.
+	_add_keys("assist_chant", [KEY_F])
+	_add_mouse("assist_chant", MOUSE_BUTTON_RIGHT)
+	_add_joy_axis("assist_chant", JOY_AXIS_TRIGGER_LEFT, 1.0)
+
+	# Mouse wheel cycles the selected spell slot.
+	_add_mouse("cycle_next", MOUSE_BUTTON_WHEEL_DOWN)
+	_add_mouse("cycle_prev", MOUSE_BUTTON_WHEEL_UP)
+
+	# Controller duel bindings: face buttons cast, right bumper swaps pages,
+	# Start pauses. Left stick moves; right stick aims (read as raw axes).
+	_add_joy_buttons("cast_1", [JOY_BUTTON_A])
+	_add_joy_buttons("cast_2", [JOY_BUTTON_B])
+	_add_joy_buttons("cast_3", [JOY_BUTTON_X])
+	_add_joy_buttons("cast_4", [JOY_BUTTON_Y])
+	_add_joy_buttons("swap_page", [JOY_BUTTON_RIGHT_SHOULDER, JOY_BUTTON_DPAD_LEFT])
+	_add_joy_buttons("pause", [JOY_BUTTON_START])
+
 
 func _add_keys(action: StringName, keycodes: Array) -> void:
 	if not InputMap.has_action(action):
@@ -107,4 +126,22 @@ func _add_mouse(action: StringName, button: int) -> void:
 		InputMap.add_action(action)
 	var ev := InputEventMouseButton.new()
 	ev.button_index = button
+	InputMap.action_add_event(action, ev)
+
+
+func _add_joy_buttons(action: StringName, buttons: Array) -> void:
+	if not InputMap.has_action(action):
+		InputMap.add_action(action)
+	for button in buttons:
+		var ev := InputEventJoypadButton.new()
+		ev.button_index = button
+		InputMap.action_add_event(action, ev)
+
+
+func _add_joy_axis(action: StringName, axis: int, value: float) -> void:
+	if not InputMap.has_action(action):
+		InputMap.add_action(action)
+	var ev := InputEventJoypadMotion.new()
+	ev.axis = axis
+	ev.axis_value = value
 	InputMap.action_add_event(action, ev)

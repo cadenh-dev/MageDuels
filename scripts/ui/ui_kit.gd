@@ -98,7 +98,7 @@ static func panel(bg: Color = PANEL, border: Color = OUTLINE, radius: int = 14) 
 static func button(text: String, font_size: int = 22, accent: Color = ACCENT) -> Button:
 	var b := Button.new()
 	b.text = text
-	b.focus_mode = Control.FOCUS_NONE
+	b.focus_mode = Control.FOCUS_ALL
 	b.add_theme_font_override("font", bold_font())
 	b.add_theme_font_size_override("font_size", font_size)
 	b.add_theme_color_override("font_color", INK)

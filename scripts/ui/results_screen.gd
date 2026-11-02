@@ -69,6 +69,7 @@ func _ready() -> void:
 	again.custom_minimum_size = Vector2(420, 54)
 	again.pressed.connect(func() -> void: rematch_pressed.emit())
 	box.add_child(again)
+	again.grab_focus()
 
 	var menu := UIKit.ghost_button("RETURN TO MENU", 18)
 	menu.custom_minimum_size = Vector2(420, 46)

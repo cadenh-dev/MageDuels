@@ -22,9 +22,12 @@ var _stats: VBoxContainer
 
 func _ready() -> void:
 	mouse_filter = Control.MOUSE_FILTER_STOP
+	focus_mode = Control.FOCUS_ALL
 	custom_minimum_size = Vector2(268, 384)
 	mouse_entered.connect(func() -> void: hovered = true)
 	mouse_exited.connect(func() -> void: hovered = false)
+	focus_entered.connect(queue_redraw)
+	focus_exited.connect(queue_redraw)
 	_build()
 
 
@@ -128,6 +131,14 @@ func _draw() -> void:
 	sb.set_corner_radius_all(14)
 	draw_style_box(sb, r)
 
+	if has_focus():
+		var fb := StyleBoxFlat.new()
+		fb.bg_color = Color(0, 0, 0, 0)
+		fb.border_color = _accent.lightened(0.35)
+		fb.set_border_width_all(2)
+		fb.set_corner_radius_all(16)
+		draw_style_box(fb, Rect2(Vector2(-4, -4), size + Vector2(8, 8)))
+
 	# Top aura
 	var orb := Vector2(size.x * 0.5, 48)
 	draw_circle(orb, 30.0, Color(_accent.r, _accent.g, _accent.b, 0.16))
@@ -137,6 +148,10 @@ func _draw() -> void:
 
 
 func _gui_input(event: InputEvent) -> void:
+	if event.is_action_pressed("ui_accept"):
+		pressed.emit(self)
+		accept_event()
+		return
 	if event is InputEventMouseButton:
 		var mb := event as InputEventMouseButton
 		if mb.button_index == MOUSE_BUTTON_LEFT and mb.pressed:

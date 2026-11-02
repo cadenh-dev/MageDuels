@@ -75,6 +75,8 @@ func _ready() -> void:
 	footer.add_child(_continue)
 
 	_select(Game.player_wand)
+	if not _cards.is_empty():
+		_cards[0].grab_focus()
 
 
 func _on_card_pressed(card: WandCard) -> void:
