@@ -100,6 +100,14 @@ scripts/debug/    headless combat / flow / lifetime / AI tests
 design/           game design and jam plan
 ```
 
+## Voice pipeline
+
+The runtime uses the baked procedural voices in `scripts/audio/voice_synth.gd`
+(player + rival profiles, no external samples). A rendered singing-voice pipeline
+(OpenUTAU + the Tsukuyomi-chan UTAU voicebank) and a starter chant project live in
+`tools/voice/`; see that README for licensing and render steps. The voicebank is
+not committed and must not be redistributed.
+
 ## Credits
 
 - Fonts: [Cinzel](https://fonts.google.com/specimen/Cinzel) and
