@@ -81,6 +81,7 @@ var _chanting := false
 
 var _master_db := 0.0
 var _unlocked := false
+var _prepared := false
 var _last_impact_ms := -1000
 var _last_round_index := -999
 var _last_player_score := -1
@@ -94,22 +95,35 @@ func _ready() -> void:
 	process_mode = Node.PROCESS_MODE_ALWAYS
 	_build_buses()
 	_load_master_volume()
-	_bake_bank()
 	_build_pool()
 	_build_voice_pool()
-	_build_music_players()
 	_wire_ui()
-	_start_music()
 	_last_round_index = _game_int("round_index", 0)
 	_last_player_score = _game_int("player_score", 0)
 	_last_enemy_score = _game_int("enemy_score", 0)
+
+
+## Bakes the bank and starts the music. Called from the boot loading screen so
+## the expensive synthesis is covered instead of freezing an interactive menu.
+func prepare() -> void:
+	if _prepared:
+		return
+	_prepared = true
+	_bake_bank()
+	_build_music_players()
+	_start_music()
 	print("AUDIO: %d streams ready (%d chant notes, %d music stems, %d voice streams)" % [
 		_streams.size() + _notes.size() + _music_streams.size() + _voice_stream_count(),
 		_notes.size(), _music_streams.size(), _voice_stream_count()
 	])
-	var args := OS.get_cmdline_user_args()
-	if "--audio-selftest" in args or "--voice-selftest" in args:
-		_run_selftest.call_deferred()
+
+
+func is_prepared() -> bool:
+	return _prepared
+
+
+func run_selftest() -> void:
+	await _run_selftest()
 
 
 func _process(_delta: float) -> void:
@@ -146,6 +160,8 @@ func _exit_tree() -> void:
 
 ## Fire a one-shot from the baked bank. Unknown ids are ignored with a warning.
 func play(sound_id: String, bus: String = "SFX", volume_db: float = 0.0) -> void:
+	if _streams.is_empty():
+		return
 	var stream: AudioStreamWAV = _streams.get(sound_id, null)
 	if stream == null:
 		push_warning("AUDIO: unknown sound '%s'" % sound_id)

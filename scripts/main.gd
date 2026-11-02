@@ -31,6 +31,13 @@ func _ready() -> void:
 	add_child(screens)
 
 	var args := OS.get_cmdline_user_args()
+	if "--audio-selftest" in args or "--voice-selftest" in args:
+		Audio.prepare()
+		await Audio.run_selftest()
+		return
+	if "--profile" in args:
+		await _profile()
+		return
 	if "--smoke" in args:
 		await _smoke_test()
 		return
@@ -69,12 +76,81 @@ func _ready() -> void:
 		var code: int = await tester.run()
 		get_tree().quit(code)
 		return
-	for mode in ["--shot-menu", "--shot-wand", "--shot-craft", "--shot-duel", "--shot-chant", "--shot-assist", "--shot-shield", "--shot-draft", "--shot-result"]:
+	for mode in ["--shot-menu", "--shot-wand", "--shot-craft", "--shot-duel", "--shot-chant", "--shot-assist", "--shot-shield", "--shot-draft", "--shot-boot", "--shot-result"]:
 		if mode in args:
 			await _debug_shot(mode)
 			return
 
+	await _boot()
 	show_menu()
+
+
+func _boot() -> void:
+	var loading := LoadingScreen.new()
+	screens.add_child(loading)
+	# Let the loading screen reach the screen before the blocking audio bake.
+	await get_tree().process_frame
+	await RenderingServer.frame_post_draw
+
+	Audio.prepare()
+
+	var warm := SpellWarmup.new()
+	add_child(warm)
+	await warm.run()
+	warm.queue_free()
+
+	loading.queue_free()
+	await get_tree().process_frame
+
+
+func _profile() -> void:
+	await _boot()
+	Game.start_arena()
+	var t0 := Time.get_ticks_usec()
+	_build_duel()
+	var build_ms := float(Time.get_ticks_usec() - t0) / 1000.0
+	player.input_enabled = true
+	ai.active = false
+	duel_active = true
+	round_running = true
+
+	var page_a: Array[SpellDef] = [
+		SpellDef.new("fire", "bolt"),
+		SpellDef.new("frost", "beam"),
+		SpellDef.new("fire", "nova"),
+		SpellDef.new("frost", "aegis"),
+	]
+	var page_b: Array[SpellDef] = [
+		SpellDef.new("storm", "orb"),
+		SpellDef.new("earth", "wall"),
+		SpellDef.new("storm", "bolt", "split"),
+		SpellDef.new("void", "beam", "pierce"),
+	]
+	player.pages = [page_a, page_b]
+	player.page = 0
+	player.selected_slot = 0
+	player.input_enabled = true
+	await _wait(0.5)
+
+	print("PROFILE build_ms=%.1f" % build_ms)
+	var worst := 0.0
+	for page in 2:
+		player.page = page
+		for slot in 4:
+			player.cooldowns[slot] = 0.0
+			player.mana = player.max_mana
+			var last := Time.get_ticks_usec()
+			player.quickcast(slot)
+			var page_worst := 0.0
+			for i in 24:
+				await get_tree().process_frame
+				var now := Time.get_ticks_usec()
+				page_worst = maxf(page_worst, float(now - last) / 1000.0)
+				last = now
+			worst = maxf(worst, page_worst)
+			print("PROFILE page=%d slot=%d max_frame=%.1fms" % [page, slot, page_worst])
+	print("PROFILE worst_frame=%.1fms" % worst)
+	get_tree().quit(0)
 
 
 # --------------------------------------------------------------------------
@@ -526,6 +602,9 @@ func _debug_shot(mode: String) -> void:
 			Game.player_score = 1
 			Game.round_index = 1
 			show_draft(true)
+		"--shot-boot":
+			await _boot()
+			show_menu()
 		"--shot-result":
 			Game.player_score = 2
 			Game.enemy_score = 1
