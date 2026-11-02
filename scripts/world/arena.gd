@@ -537,8 +537,11 @@ func _resolve_on(caster: Wizard, victim: Wizard, spell: SpellDef, s: Dictionary,
 					w.take_damage(damage * 0.5, spell.element, victim.global_position, 1.0, false)
 					chained = true
 					break
-			if chained:
-				shake(0.08, 0.12)
+			if not chained:
+				# In a 1v1 there is no second foe: the bolt arcs back through the victim.
+				Fx.beam(effects, victim.global_position + Vector3.UP * 2.1, victim.global_position + Vector3.UP * 0.3, s.get("color", Color.WHITE), 0.05, 0.18)
+				victim.take_damage(damage * 0.5, spell.element, victim.global_position, 0.0, false)
+			shake(0.08, 0.12)
 
 
 func spawn_position(index: int) -> Vector3:
