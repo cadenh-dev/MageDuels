@@ -868,6 +868,11 @@ func _input(event: InputEvent) -> void:
 ## Web exports only allow audio after a user gesture. Playing a silent voice on
 ## the first key/click warms the WebAudio graph; other platforms no-op quietly.
 func _unlock_audio() -> void:
+	# A click on the loading screen can arrive before the bank exists. Keep
+	# _unlocked false so the first post-boot gesture still unlocks WebAudio and
+	# starts the stream warmup.
+	if not _prepared:
+		return
 	_unlocked = true
 	var p := AudioStreamPlayer.new()
 	p.name = "Unlock"
