@@ -19,6 +19,8 @@ New-Item -ItemType Directory -Force -Path $OutDir | Out-Null
 Get-ChildItem -Path $OutDir -Force -ErrorAction SilentlyContinue | Remove-Item -Recurse -Force
 # Godot will not create a missing target folder; recreate it after the clean.
 New-Item -ItemType Directory -Force -Path (Join-Path $OutDir "web") | Out-Null
+# Keep Godot's editor from scanning the exported wasm/pck on the next open.
+New-Item -ItemType File -Force -Path (Join-Path $OutDir ".gdignore") | Out-Null
 
 & $Godot --headless --path $Root --export-release "Web" $OutFile
 if ($LASTEXITCODE -ne 0) { throw "Godot export failed with exit code $LASTEXITCODE" }
