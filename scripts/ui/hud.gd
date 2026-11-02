@@ -22,6 +22,7 @@ var _mana_style_enemy: StyleBoxFlat
 var _slots: Array[SpellSlotWidget] = []
 var _slots_box: HBoxContainer
 var _page_label: Label
+var _hint_label: Label
 var _round_label: Label
 var _score_label: Label
 var _element_badge: Label
@@ -276,6 +277,7 @@ func _build_bottom_bar() -> void:
 	var hint := UIKit.label("WASD · MOUSE · 1-4 · SPACE/RMB · SHIFT", 11, UIKit.MUTED)
 	hint.mouse_filter = Control.MOUSE_FILTER_IGNORE
 	hint_panel.add_child(hint)
+	_hint_label = hint
 
 	_rival_channel = UIKit.bold_label("", 13, UIKit.GOLD)
 	_rival_channel.set_anchors_and_offsets_preset(Control.PRESET_CENTER_TOP)
@@ -463,6 +465,7 @@ func _process(_delta: float) -> void:
 	_update_round_info()
 	_refresh_chant()
 	_update_rival_channel()
+	_update_input_hints()
 	if _coach != null and is_instance_valid(_coach):
 		_coach.update(_delta)
 
@@ -513,7 +516,14 @@ func _refresh_slots() -> void:
 	for i in _slots.size():
 		var spell: SpellDef = spells[i] if i < spells.size() else null
 		_slots[i].setup(spell, str(i + 1), i == player.selected_slot)
-	_page_label.text = "PAGE %s  ·  SHIFT to swap" % ("A" if player.page == 0 else "B")
+	_page_label.text = "PAGE %s  ·  %s to swap" % ["A" if player.page == 0 else "B", "RB" if Game.input_mode == "pad" else "SHIFT"]
+
+
+func _update_input_hints() -> void:
+	if _hint_label != null:
+		_hint_label.text = "LS MOVE · RS AIM · ABXY CAST · LT HOLD" if Game.input_mode == "pad" else "WASD · MOUSE · 1-4 · SPACE/RMB · SHIFT"
+	if _page_label != null and player != null:
+		_page_label.text = "PAGE %s  ·  %s to swap" % ["A" if player.page == 0 else "B", "RB" if Game.input_mode == "pad" else "SHIFT"]
 
 
 func _update_round_info() -> void:
