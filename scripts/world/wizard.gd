@@ -120,6 +120,13 @@ func setup(p_name: String, p_kit: Dictionary, p_pages: Array, p_is_player: bool)
 
 func _ready() -> void:
 	add_to_group("wizards")
+	if is_instance_valid(Audio):
+		Audio.register_wizard(self)
+
+
+func _exit_tree() -> void:
+	if is_instance_valid(Audio):
+		Audio.unregister_wizard(self)
 
 
 func _build_model() -> void:

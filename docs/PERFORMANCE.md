@@ -93,6 +93,30 @@ The previous Aegis first-cast spike measured **123.4ms**; after the real-wizard
 shield warm-up it is **19–20ms**. Web boot measured **4.67s** engine-ready with
 audio at **1.04s**, zero console errors.
 
+## Audio runtime audit
+
+- **No per-frame group scan.** `Audio._process` used to rebuild the `wizards`
+  group array and a seen dictionary every frame, even in menus. Wizards now
+  register/unregister with the audio director, so only live wizards are polled.
+  The `/root/Game` lookup is cached instead of resolving a node path three times
+  per frame.
+- **One chant note per frame.** A lagged frame or AI catch-up could previously
+  enter the `typed > known` loop with several characters and start several
+  voice + pluck pairs in one frame. It now plays only the newest rung and
+  advances the counter; intended typing still gets one note per key.
+- **Prioritised silent stream warmup.** On the first user gesture, the first
+  six cast sounds, impact, chant resolve/fail, onsets, callouts, then the chant
+  ladder are played once at −80 dB. The streams a first cast needs are
+  initialised before the round intro ends; the long tail follows.
+- **Debounced volume save.** The pause-menu slider emits on every step. The
+  config write is now debounced by 250ms (and flushed on exit) instead of
+  writing `audio.cfg` on every slider tick.
+- **Bus changes only when needed.** The SFX pool no longer reassigns the bus
+  while a player is already on it.
+
+The remaining per-cast allocations (`play_spell_name` builds a small word/stream
+array) are three elements long and are not frame-budget risks.
+
 ## Render pass detail
 
 The spikes the profiler labels **Render 3D Depth** and **Render 3D Transparent**

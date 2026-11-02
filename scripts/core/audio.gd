@@ -27,7 +27,6 @@ const POOL_SIZE := 12
 const VOICE_POOL_SIZE := 8
 const MUSIC_LAYERS := 3
 const CONFIG_PATH := "user://audio.cfg"
-const WIZARD_GROUP := "wizards"
 const VOICE_CUES: Array[String] = ["onset", "resolve", "fail", "cut"]
 ## Extra trim applied to every rival voice shot on top of the Voice bus gain.
 const RIVAL_VOICE_TRIM_DB := -3.5
@@ -94,6 +93,9 @@ var _last_impact_ms := -1000
 var _last_round_index := -999
 var _last_player_score := -1
 var _last_enemy_score := -1
+var _game_node: Node
+var _warm_started := false
+var _save_queued := false
 
 ## instance_id -> tracking dictionary. Weak refs keep freed wizards cheap.
 var _wizards: Dictionary = {}
@@ -136,11 +138,15 @@ func run_selftest() -> void:
 
 
 func _process(_delta: float) -> void:
-	_scan_wizards()
+	_poll_wizards()
 	_poll_game()
 
 
 func _exit_tree() -> void:
+	# Flush a pending volume change before the debounce timer dies with the tree.
+	if _save_queued:
+		_save_queued = false
+		_save_master_volume()
 	# Stop the dummy/driver playbacks and drop references so a quick quit (the
 	# headless test path) does not report leaked audio objects.
 	for p in _pool:
@@ -298,6 +304,13 @@ func play_cast(element: String) -> void:
 
 func set_master_volume_db(db: float) -> void:
 	_apply_master_db(db)
+	# The pause-menu slider emits on every step. Debounce the config write so
+	# dragging it does not hit the disk dozens of times per second.
+	if _save_queued:
+		return
+	_save_queued = true
+	await get_tree().create_timer(0.25).timeout
+	_save_queued = false
 	_save_master_volume()
 
 
@@ -506,7 +519,8 @@ func _save_master_volume() -> void:
 func _play_stream(stream: AudioStreamWAV, bus: String, pitch: float, volume_db: float) -> void:
 	var p := _next_player()
 	p.stream = stream
-	p.bus = bus
+	if String(p.bus) != bus:
+		p.bus = bus
 	p.pitch_scale = pitch
 	p.volume_db = volume_db
 	p.play()
@@ -606,21 +620,39 @@ func _set_lowpass_cutoff(value: float) -> void:
 # Existing-signal integration
 # ---------------------------------------------------------------------------
 
-func _scan_wizards() -> void:
-	var seen := {}
-	for node in get_tree().get_nodes_in_group(WIZARD_GROUP):
-		var id := node.get_instance_id()
-		seen[id] = true
-		if not _wizards.has(id):
-			_wire_wizard(node, id)
-		var st: Dictionary = _wizards[id]
-		_poll_wizard(node, st)
+func register_wizard(node: Node) -> void:
+	if node == null or not is_instance_valid(node):
+		return
+	var id := node.get_instance_id()
+	if _wizards.has(id):
+		return
+	_wire_wizard(node, id)
+
+
+func unregister_wizard(node: Node) -> void:
+	if node == null or not is_instance_valid(node):
+		return
+	var id := node.get_instance_id()
+	if not _wizards.has(id):
+		return
+	var st: Dictionary = _wizards[id]
+	if not bool(st.get("is_player", true)) and bool(st.get("was_chanting", false)):
+		_set_rival_chanting(false)
+	_wizards.erase(id)
+
+
+## Poll only the wizards that registered themselves. The previous version
+## rebuilt a group array and a seen-set every frame, even in menus.
+func _poll_wizards() -> void:
 	for id in _wizards.keys():
-		if not seen.has(id):
-			var gone: Dictionary = _wizards[id]
-			if not bool(gone.get("is_player", true)) and bool(gone.get("was_chanting", false)):
+		var st: Dictionary = _wizards[id]
+		var node: Node = st["ref"].get_ref()
+		if node == null or not is_instance_valid(node):
+			if not bool(st.get("is_player", true)) and bool(st.get("was_chanting", false)):
 				_set_rival_chanting(false)
 			_wizards.erase(id)
+			continue
+		_poll_wizard(node, st)
 
 
 func _wire_wizard(node: Node, id: int) -> void:
@@ -675,8 +707,9 @@ func _poll_wizard(node: Node, st: Dictionary) -> void:
 	var typed := String(node.chant_text).length()
 	var known := int(st["chant_len"])
 	if typed > known:
-		for i in range(known, typed):
-			play_note(i, is_player)
+		# One note per frame. If the text jumps (AI catch-up or a lagged frame)
+		# starting several voice+pluck streams at once reads as a stutter.
+		play_note(typed - 1, is_player)
 		st["chant_len"] = typed
 	elif typed < known:
 		st["chant_len"] = typed
@@ -786,7 +819,9 @@ func _poll_game() -> void:
 
 
 func _game() -> Node:
-	return get_node_or_null("/root/Game")
+	if _game_node == null or not is_instance_valid(_game_node):
+		_game_node = get_node_or_null("/root/Game")
+	return _game_node
 
 
 func _game_int(property: String, fallback: int) -> int:
@@ -861,9 +896,13 @@ func _unlock_audio() -> void:
 	_warm_streams()
 
 
-## One silent frame per baked stream. This is the first-use cost the player
-## would otherwise pay on their first cast of each element.
+## One silent frame per baked stream. Front-load the sounds a first cast,
+## impact, and callout need, then warm the long tail. This is the first-use
+## cost the player would otherwise pay on their first element.
 func _warm_streams() -> void:
+	if _warm_started:
+		return
+	_warm_started = true
 	var sfx := AudioStreamPlayer.new()
 	sfx.name = "WarmSfx"
 	sfx.bus = "SFX"
@@ -875,40 +914,42 @@ func _warm_streams() -> void:
 	vox.volume_db = -80.0
 	add_child(vox)
 
-	for id in SOUND_IDS:
+	var warmed: Dictionary = {}
+	for id in [
+		"cast_fire", "cast_frost", "cast_storm", "cast_earth", "cast_arcane", "cast_void",
+		"impact", "chant_resolve", "chant_fail",
+	]:
 		var stream: AudioStreamWAV = _streams.get(id, null)
 		if stream == null:
 			continue
-		sfx.stream = stream
-		sfx.play()
-		await get_tree().process_frame
+		warmed[id] = true
+		await _warm_stream(sfx, stream)
+
+	for is_player in [true, false]:
+		var key := VoiceSynthLib.VOICE_PLAYER if is_player else VoiceSynthLib.VOICE_RIVAL
+		var bank: Dictionary = _voices.get(key, {})
+		var onset: AudioStreamWAV = bank.get("onset", null)
+		await _warm_stream(vox, onset)
+
+	for word in _callouts:
+		await _warm_stream(vox, _callouts[word])
 	for note in _notes:
-		sfx.stream = note
-		sfx.play()
-		await get_tree().process_frame
+		await _warm_stream(sfx, note)
+	for key in _voices:
+		var bank: Dictionary = _voices[key]
+		var ladder: Array = bank.get("ladder", [])
+		for stream in ladder:
+			if stream is AudioStreamWAV:
+				await _warm_stream(vox, stream)
+
+	for id in SOUND_IDS:
+		if warmed.has(id):
+			continue
+		await _warm_stream(sfx, _streams.get(id, null))
 	for key in _voices:
 		var bank: Dictionary = _voices[key]
 		for cue in VOICE_CUES:
-			var stream: AudioStreamWAV = bank.get(cue, null)
-			if stream == null:
-				continue
-			vox.stream = stream
-			vox.play()
-			await get_tree().process_frame
-		var ladder: Array = bank.get("ladder", [])
-		for stream in ladder:
-			if not stream is AudioStreamWAV:
-				continue
-			vox.stream = stream
-			vox.play()
-			await get_tree().process_frame
-	for word in _callouts:
-		var callout: AudioStreamWAV = _callouts[word]
-		if callout == null:
-			continue
-		vox.stream = callout
-		vox.play()
-		await get_tree().process_frame
+			await _warm_stream(vox, bank.get(cue, null))
 
 	sfx.stop()
 	sfx.stream = null
@@ -916,6 +957,14 @@ func _warm_streams() -> void:
 	vox.stop()
 	vox.stream = null
 	vox.queue_free()
+
+
+func _warm_stream(player: AudioStreamPlayer, stream: AudioStreamWAV) -> void:
+	if stream == null or not is_instance_valid(player):
+		return
+	player.stream = stream
+	player.play()
+	await get_tree().process_frame
 
 
 # ---------------------------------------------------------------------------
