@@ -5,9 +5,10 @@ extends Node
 ## Owns the runtime side of the procedural soundtrack:
 ##   * one bank of AudioStreamWAVs, baked exactly once in _ready()
 ##   * a 12-voice SFX pool with per-shot pitch humanisation
+##   * a baked synthetic chant voice bank (player + rival profiles)
 ##   * a 3-layer, phase-locked music bed driven by Game.round_index
-##   * chant arpeggio + music ducking
-##   * Music / SFX / UI buses and a hard limiter on Master
+##   * chant arpeggio, voice syllables + music ducking
+##   * Music / SFX / UI / Voice buses and a hard limiter on Master
 ##   * master volume persisted to user://audio.cfg
 ##
 ## Gameplay code never has to call this: the autoload watches the "wizards"
@@ -20,11 +21,16 @@ extends Node
 ## test harness stays silent and error-free.
 
 const SynthLib := preload("res://scripts/audio/synth.gd")
+const VoiceSynthLib := preload("res://scripts/audio/voice_synth.gd")
 
 const POOL_SIZE := 12
+const VOICE_POOL_SIZE := 8
 const MUSIC_LAYERS := 3
 const CONFIG_PATH := "user://audio.cfg"
 const WIZARD_GROUP := "wizards"
+const VOICE_CUES: Array[String] = ["onset", "resolve", "fail", "cut"]
+## Extra trim applied to every rival voice shot on top of the Voice bus gain.
+const RIVAL_VOICE_TRIM_DB := -3.5
 
 const SOUND_IDS: Array[String] = [
 	"cast_fire", "cast_frost", "cast_storm", "cast_earth", "cast_arcane", "cast_void",
@@ -52,6 +58,14 @@ const MUSIC_LEVEL_DB: Array = [
 var _streams: Dictionary = {}
 var _notes: Array[AudioStreamWAV] = []
 var _music_streams: Array[AudioStreamWAV] = []
+
+## VoiceSynth.VOICE_PLAYER / VOICE_RIVAL -> baked bank dictionary.
+var _voices: Dictionary = {}
+var _voice_pool: Array[AudioStreamPlayer] = []
+var _voice_cursor := 0
+var _voice_bytes := 0
+var _voice_bake_ms := 0
+var _rival_chanting := false
 
 var _pool: Array[AudioStreamPlayer] = []
 var _pool_cursor := 0
@@ -82,16 +96,19 @@ func _ready() -> void:
 	_load_master_volume()
 	_bake_bank()
 	_build_pool()
+	_build_voice_pool()
 	_build_music_players()
 	_wire_ui()
 	_start_music()
 	_last_round_index = _game_int("round_index", 0)
 	_last_player_score = _game_int("player_score", 0)
 	_last_enemy_score = _game_int("enemy_score", 0)
-	print("AUDIO: %d streams ready (%d chant notes, %d music stems)" % [
-		_streams.size() + _notes.size() + _music_streams.size(), _notes.size(), _music_streams.size()
+	print("AUDIO: %d streams ready (%d chant notes, %d music stems, %d voice streams)" % [
+		_streams.size() + _notes.size() + _music_streams.size() + _voice_stream_count(),
+		_notes.size(), _music_streams.size(), _voice_stream_count()
 	])
-	if "--audio-selftest" in OS.get_cmdline_user_args():
+	var args := OS.get_cmdline_user_args()
+	if "--audio-selftest" in args or "--voice-selftest" in args:
 		_run_selftest.call_deferred()
 
 
@@ -106,12 +123,16 @@ func _exit_tree() -> void:
 	for p in _pool:
 		p.stop()
 		p.stream = null
+	for p in _voice_pool:
+		p.stop()
+		p.stream = null
 	for p in _music_players:
 		p.stop()
 		p.stream = null
 	_streams.clear()
 	_notes.clear()
 	_music_streams.clear()
+	_voices.clear()
 	# AudioServer releases a stopped playback on the audio thread. Without a
 	# short drain the last few sounds are still referenced when ObjectDB is
 	# checked at shutdown, which prints a spurious "instances were leaked"
@@ -133,12 +154,21 @@ func play(sound_id: String, bus: String = "SFX", volume_db: float = 0.0) -> void
 
 
 ## Play one rung of the chant ladder. pitch_index rises with typed progress.
-func play_note(pitch_index: int) -> void:
+## The synthetic voice sings the rung; the original pluck doubles it quietly so
+## the pitch skeleton still reads under the noise of a duel.
+func play_note(pitch_index: int, is_player: bool = true) -> void:
 	if _notes.is_empty():
 		return
 	var idx := clampi(pitch_index, 0, _notes.size() - 1)
 	# The ladder is musical: only micro-humanise, never enough to blur the rise.
-	_play_stream(_notes[idx], "SFX", randf_range(0.995, 1.005), 0.0)
+	_play_stream(_notes[idx], "SFX", randf_range(0.995, 1.005), -9.0)
+	_play_voice_cue("ladder", is_player, pitch_index, 0.0)
+
+
+## Fire a voice cue: "onset", "resolve", "fail" or "cut".
+## is_player selects the profile; the rival is baked darker and mixed quieter.
+func play_voice(cue: String, is_player: bool = true, volume_db: float = 0.0) -> void:
+	_play_voice_cue(cue, is_player, 0, volume_db)
 
 
 ## Choose a music tier. 0 = pad, 1 = +pulse, 2 = +lead, 3 = all-out.
@@ -156,14 +186,35 @@ func set_chanting(active: bool) -> void:
 	if active == _chanting:
 		return
 	_chanting = active
+	_refresh_duck()
+
+
+## The rival's chant only leans on the music (-3 dB); the player's own chant
+## still gets the deeper -7 dB duck so typed letters stay legible.
+func _set_rival_chanting(active: bool) -> void:
+	if active == _rival_chanting:
+		return
+	_rival_chanting = active
+	_refresh_duck()
+
+
+func _refresh_duck() -> void:
 	if _duck_tween != null and _duck_tween.is_valid():
 		_duck_tween.kill()
 	_duck_tween = create_tween()
-	var target_db := -7.0 if active else 0.0
-	var t := 0.1 if active else 0.4
+	var target_db := 0.0
+	var cutoff := 20000.0
+	var t := 0.4
+	if _chanting:
+		target_db = -7.0
+		cutoff = 700.0
+		t = 0.1
+	elif _rival_chanting:
+		target_db = -3.0
+		cutoff = 1400.0
+		t = 0.15
 	_duck_tween.tween_method(_set_duck_db, _duck_db, target_db, t).set_trans(Tween.TRANS_SINE)
 	if _music_lowpass != null:
-		var cutoff := 700.0 if active else 20000.0
 		_duck_tween.parallel().tween_method(_set_lowpass_cutoff, _music_lowpass.cutoff_hz, cutoff, t + 0.05)
 
 
@@ -213,7 +264,20 @@ func _bake_bank() -> void:
 	_music_streams.clear()
 	for layer in MUSIC_LAYERS:
 		_music_streams.append(SynthLib.music_layer(layer))
-	print("AUDIO: baked in %d ms" % (Time.get_ticks_msec() - t0))
+
+	# Voice bank: two profiles, baked once. Everything below is playback only.
+	var voice_t0 := Time.get_ticks_msec()
+	_voices.clear()
+	_voices[VoiceSynthLib.VOICE_PLAYER] = VoiceSynthLib.bake_voice(VoiceSynthLib.VOICE_PLAYER)
+	_voices[VoiceSynthLib.VOICE_RIVAL] = VoiceSynthLib.bake_voice(VoiceSynthLib.VOICE_RIVAL)
+	_voice_bake_ms = Time.get_ticks_msec() - voice_t0
+	_voice_bytes = _voice_memory_bytes()
+
+	var total_ms := Time.get_ticks_msec() - t0
+	print("AUDIO: baked in %d ms (voice %d ms)" % [total_ms, _voice_bake_ms])
+	print("AUDIO: voice bank %d streams, %d KiB (%.0f KiB per profile)" % [
+		_voice_stream_count(), _voice_bytes / 1024, float(_voice_bytes) / 2048.0
+	])
 
 
 func _build_pool() -> void:
@@ -224,6 +288,18 @@ func _build_pool() -> void:
 		p.process_mode = Node.PROCESS_MODE_ALWAYS
 		add_child(p)
 		_pool.append(p)
+
+
+func _build_voice_pool() -> void:
+	# A separate pool keeps long vowel/stab streams from stealing impact and UI
+	# one-shots, and gives the voice bank its own bus and gain staging.
+	for i in VOICE_POOL_SIZE:
+		var p := AudioStreamPlayer.new()
+		p.name = "ChantVoice%02d" % i
+		p.bus = "Voice"
+		p.process_mode = Node.PROCESS_MODE_ALWAYS
+		add_child(p)
+		_voice_pool.append(p)
 
 
 func _build_music_players() -> void:
@@ -243,7 +319,7 @@ func _build_music_players() -> void:
 # ---------------------------------------------------------------------------
 
 func _build_buses() -> void:
-	for bus_name in ["Music", "SFX", "UI"]:
+	for bus_name in ["Music", "SFX", "UI", "Voice"]:
 		if AudioServer.get_bus_index(bus_name) == -1:
 			var idx := AudioServer.bus_count
 			AudioServer.add_bus(idx)
@@ -253,12 +329,29 @@ func _build_buses() -> void:
 	AudioServer.set_bus_volume_db(AudioServer.get_bus_index("Music"), -2.5)
 	AudioServer.set_bus_volume_db(AudioServer.get_bus_index("SFX"), -1.0)
 	AudioServer.set_bus_volume_db(AudioServer.get_bus_index("UI"), -3.0)
+	AudioServer.set_bus_volume_db(AudioServer.get_bus_index("Voice"), -4.5)
 
 	if not _bus_has_effect(0, "AudioEffectHardLimiter"):
 		var limiter := AudioEffectHardLimiter.new()
 		limiter.ceiling_db = -0.6
 		limiter.release = 0.12
 		AudioServer.add_bus_effect(0, limiter)
+
+	# Voice colour: soft overdrive for the "synthetic throat", then a gentle
+	# lowpass to shave the buzz above the formant range. Both are runtime-only.
+	var voice_idx := AudioServer.get_bus_index("Voice")
+	if not _bus_has_effect(voice_idx, "AudioEffectDistortion"):
+		var dist := AudioEffectDistortion.new()
+		dist.mode = AudioEffectDistortion.MODE_OVERDRIVE
+		dist.pre_gain = -2.0
+		dist.post_gain = -1.0
+		dist.drive = 0.28
+		AudioServer.add_bus_effect(voice_idx, dist)
+	if not _bus_has_effect(voice_idx, "AudioEffectLowPassFilter"):
+		var voice_lp := AudioEffectLowPassFilter.new()
+		voice_lp.cutoff_hz = 7600.0
+		voice_lp.resonance = 0.22
+		AudioServer.add_bus_effect(voice_idx, voice_lp)
 
 	var music_idx := AudioServer.get_bus_index("Music")
 	for i in AudioServer.get_bus_effect_count(music_idx):
@@ -329,6 +422,43 @@ func _next_player() -> AudioStreamPlayer:
 	return p
 
 
+func _next_voice_player() -> AudioStreamPlayer:
+	for p in _voice_pool:
+		if not p.playing:
+			return p
+	var p := _voice_pool[_voice_cursor % _voice_pool.size()]
+	_voice_cursor = (_voice_cursor + 1) % _voice_pool.size()
+	return p
+
+
+## internal cue player. "ladder" indexes the baked rung streams; the other
+## cues are looked up by name. No stream is ever built here.
+func _play_voice_cue(cue: String, is_player: bool, ladder_index: int, volume_db: float) -> void:
+	var key := VoiceSynthLib.VOICE_PLAYER if is_player else VoiceSynthLib.VOICE_RIVAL
+	var bank: Dictionary = _voices.get(key, {})
+	if bank.is_empty():
+		return
+	var stream: AudioStreamWAV
+	if cue == "ladder":
+		var ladder: Array = bank.get("ladder", [])
+		if ladder.is_empty():
+			return
+		var idx := clampi(ladder_index, 0, ladder.size() - 1)
+		stream = ladder[idx]
+	else:
+		stream = bank.get(cue, null)
+	if stream == null:
+		push_warning("AUDIO: unknown voice cue '%s'" % cue)
+		return
+	if _voice_pool.is_empty():
+		return
+	var p := _next_voice_player()
+	p.stream = stream
+	p.pitch_scale = randf_range(0.997, 1.003)
+	p.volume_db = volume_db + (0.0 if is_player else RIVAL_VOICE_TRIM_DB)
+	p.play()
+
+
 func _start_music() -> void:
 	if _music_started or _music_players.is_empty():
 		return
@@ -388,6 +518,9 @@ func _scan_wizards() -> void:
 		_poll_wizard(node, st)
 	for id in _wizards.keys():
 		if not seen.has(id):
+			var gone: Dictionary = _wizards[id]
+			if not bool(gone.get("is_player", true)) and bool(gone.get("was_chanting", false)):
+				_set_rival_chanting(false)
 			_wizards.erase(id)
 
 
@@ -399,6 +532,7 @@ func _wire_wizard(node: Node, id: int) -> void:
 	_connect_signal(node, "chant_interrupted", _on_chant_interrupted)
 	_wizards[id] = {
 		"ref": weakref(node),
+		"is_player": bool(node.is_player),
 		"page": int(node.page),
 		"page_ready": false,
 		"chant_len": 0,
@@ -424,25 +558,26 @@ func _poll_wizard(node: Node, st: Dictionary) -> void:
 	else:
 		st["page_ready"] = true
 
-	if not bool(node.is_player):
-		return
-
 	if not bool(node.chanting):
 		st["chant_len"] = 0
 		return
 
+	var is_player := bool(node.is_player)
 	var typos := int(node.chant_typos)
 	if typos > int(st["typos"]):
 		st["typos"] = typos
 		st["chant_len"] = 0
-		play("chant_fail")
+		play("chant_fail", "SFX", -3.0 if is_player else -6.0)
+		play_voice("fail", is_player, 0.0 if is_player else -3.0)
 		return
 
+	# Both duelists type real characters, so both climb the same ladder. The
+	# rival's bank is transposed/formant-shifted at bake time, not in playback.
 	var typed := String(node.chant_text).length()
 	var known := int(st["chant_len"])
 	if typed > known:
 		for i in range(known, typed):
-			play_note(i)
+			play_note(i, is_player)
 		st["chant_len"] = typed
 	elif typed < known:
 		st["chant_len"] = typed
@@ -459,6 +594,7 @@ func _on_cast_fired(caster: Node, spell: Variant, _stats: Dictionary, _origin: V
 		resolved = Time.get_ticks_msec() - int(st.get("ended_ms", -9999)) < 250
 	if resolved:
 		play("chant_resolve", "SFX", -4.0)
+		play_voice("resolve", bool(caster.is_player), 0.0 if bool(caster.is_player) else -3.0)
 	play_cast(element)
 
 
@@ -478,13 +614,20 @@ func _on_died(_wizard: Node) -> void:
 func _on_chant_changed(wizard: Node, active: bool) -> void:
 	if not is_instance_valid(wizard):
 		return
-	if bool(wizard.is_player):
+	var is_player := bool(wizard.is_player)
+	if is_player:
 		set_chanting(active)
+	else:
+		_set_rival_chanting(active)
 	var id := wizard.get_instance_id()
 	if not _wizards.has(id):
 		return
 	var st: Dictionary = _wizards[id]
 	if active:
+		# chant_changed(true) also fires when a typo resets the text, so only
+		# the real 0 -> 1 transition gets the breath/onset.
+		if not bool(st.get("was_chanting", false)):
+			play_voice("onset", is_player, 0.0 if is_player else -2.5)
 		st["was_chanting"] = true
 		st["chant_len"] = 0
 		st["typos"] = int(wizard.chant_typos)
@@ -500,7 +643,9 @@ func _on_chant_changed(wizard: Node, active: bool) -> void:
 func _on_chant_interrupted(wizard: Node) -> void:
 	if not is_instance_valid(wizard):
 		return
-	play("chant_fail", "SFX", -3.0)
+	var is_player := bool(wizard.is_player)
+	play("chant_fail", "SFX", -3.0 if is_player else -6.0)
+	play_voice("cut", is_player, 0.0 if is_player else -3.0)
 	var id := wizard.get_instance_id()
 	if _wizards.has(id):
 		var st: Dictionary = _wizards[id]
@@ -508,8 +653,10 @@ func _on_chant_interrupted(wizard: Node) -> void:
 		st["ended_ms"] = -9999
 		st["was_chanting"] = false
 		st["chant_len"] = 0
-	if bool(wizard.is_player):
+	if is_player:
 		set_chanting(false)
+	else:
+		_set_rival_chanting(false)
 
 
 func _poll_game() -> void:
@@ -587,6 +734,20 @@ func _unlock_audio() -> void:
 	p.finished.connect(p.queue_free)
 	p.play()
 
+	# Warm the Voice bus graph too, so the first typed letter is not the
+	# gesture that resumes a suspended WebAudio context on the voice path.
+	var bank: Dictionary = _voices.get(VoiceSynthLib.VOICE_PLAYER, {})
+	var onset: AudioStreamWAV = bank.get("onset", null)
+	if onset != null:
+		var v := AudioStreamPlayer.new()
+		v.name = "UnlockVoice"
+		v.stream = onset
+		v.bus = "Voice"
+		v.volume_db = -80.0
+		add_child(v)
+		v.finished.connect(v.queue_free)
+		v.play()
+
 
 # ---------------------------------------------------------------------------
 # Debug: godot --headless --path . -- --audio-selftest
@@ -597,8 +758,8 @@ func _run_selftest() -> void:
 	var failures := 0
 	var baked_before := SynthLib.baked_count
 
-	print("AUDIO TEST: %d streams, %d chant notes, %d music stems" % [
-		_streams.size(), _notes.size(), _music_streams.size()
+	print("AUDIO TEST: %d streams, %d chant notes, %d music stems, %d voice streams" % [
+		_streams.size(), _notes.size(), _music_streams.size(), _voice_stream_count()
 	])
 
 	for id in SOUND_IDS:
@@ -643,11 +804,70 @@ func _run_selftest() -> void:
 			print("  BAD music[%d] is not phase-locked (stem length differs)" % layer)
 			failures += 1
 
+	# Voice bank: format, nonzero RMS, sane/never-clipped peaks, rising ladder.
+	var voice_streams := _voice_streams()
+	var voice_rms_min := 1.0
+	var voice_rms_max := 0.0
+	var voice_rms_sum := 0.0
+	var voice_peak_max := 0.0
+	var voice_bytes := 0
+	var voice_bad := 0
+	for stream in voice_streams:
+		var ok := _validate(stream, false)
+		var rms := _stream_rms(stream)
+		var peak := _stream_peak(stream)
+		voice_rms_min = minf(voice_rms_min, rms)
+		voice_rms_max = maxf(voice_rms_max, rms)
+		voice_rms_sum += rms
+		voice_peak_max = maxf(voice_peak_max, peak)
+		if stream != null:
+			voice_bytes += stream.data.size()
+		if not ok or rms < 0.02 or peak < 0.20 or peak > 0.995:
+			print("  BAD voice stream len=%5.2fs rms=%5.3f peak=%4.2f" % [_stream_len(stream), rms, peak])
+			voice_bad += 1
+			failures += 1
+	var voice_avg := voice_rms_sum / maxf(1.0, float(voice_streams.size()))
+	var voice_status := "ok" if voice_bad == 0 else "BAD"
+	print("  voice bank     %d streams %4.1f KiB bake=%d ms rms=%4.3f..%4.3f avg=%4.3f peak=%4.2f %s" % [
+		voice_streams.size(), float(voice_bytes) / 1024.0, _voice_bake_ms,
+		voice_rms_min, voice_rms_max, voice_avg, voice_peak_max, voice_status,
+	])
+	var expected_voice := (VoiceSynthLib.LADDER_STEPS + 4) * 2
+	if voice_streams.size() != expected_voice:
+		print("  BAD voice stream count %d (expected %d)" % [voice_streams.size(), expected_voice])
+		failures += 1
+	for i in range(1, VoiceSynthLib.LADDER_STEPS):
+		if VoiceSynthLib.ladder_frequency(i) <= VoiceSynthLib.ladder_frequency(i - 1):
+			print("  BAD voice ladder is not rising at %d" % i)
+			failures += 1
+	print("  voice ladder  %4.1f Hz -> %4.1f Hz (%d rungs, vowels A-E-I-O-U)" % [
+		VoiceSynthLib.ladder_frequency(0),
+		VoiceSynthLib.ladder_frequency(VoiceSynthLib.MAX_LADDER_INDEX),
+		VoiceSynthLib.LADDER_STEPS,
+	])
+	var voice_bus := AudioServer.get_bus_index("Voice")
+	if voice_bus == -1:
+		print("  BAD Voice bus is missing")
+		failures += 1
+	elif not _bus_has_effect(voice_bus, "AudioEffectDistortion"):
+		print("  BAD Voice bus has no distortion")
+		failures += 1
+	else:
+		print("  voice bus      %.1f dB, %d effects (distortion + lowpass) ok" % [
+			AudioServer.get_bus_volume_db(voice_bus), AudioServer.get_bus_effect_count(voice_bus)
+		])
+
 	# Exercise the runtime path through the real pool and bus graph.
 	for id in SOUND_IDS:
 		play(id)
 	for i in _notes.size():
 		play_note(i)
+	for i in VoiceSynthLib.LADDER_STEPS:
+		play_note(i, true)
+		play_note(i, false)
+	for cue in VOICE_CUES:
+		play_voice(cue, true)
+		play_voice(cue, false)
 	set_intensity(3)
 	set_chanting(true)
 	await get_tree().create_timer(0.2).timeout
@@ -662,6 +882,9 @@ func _run_selftest() -> void:
 	# Release active playbacks before quitting so the engine does not report
 	# leak warnings from the dummy audio driver.
 	for p in _pool:
+		p.stop()
+		p.stream = null
+	for p in _voice_pool:
 		p.stop()
 		p.stream = null
 	for p in _music_players:
@@ -680,6 +903,42 @@ func _run_selftest() -> void:
 
 	print("AUDIO TEST: %s" % ("PASS" if failures == 0 else "FAIL"))
 	get_tree().quit(0 if failures == 0 else 1)
+
+
+func _voice_streams() -> Array[AudioStreamWAV]:
+	var out: Array[AudioStreamWAV] = []
+	for key in _voices.keys():
+		var bank: Dictionary = _voices[key]
+		var onset: AudioStreamWAV = bank.get("onset", null)
+		out.append(onset)
+		var ladder: Array = bank.get("ladder", [])
+		for item in ladder:
+			var stream: AudioStreamWAV = item
+			out.append(stream)
+		var resolve: AudioStreamWAV = bank.get("resolve", null)
+		var fail: AudioStreamWAV = bank.get("fail", null)
+		var cut: AudioStreamWAV = bank.get("cut", null)
+		out.append(resolve)
+		out.append(fail)
+		out.append(cut)
+	return out
+
+
+func _voice_stream_count() -> int:
+	var count := 0
+	for key in _voices.keys():
+		var bank: Dictionary = _voices[key]
+		var ladder: Array = bank.get("ladder", [])
+		count += 4 + ladder.size()
+	return count
+
+
+func _voice_memory_bytes() -> int:
+	var total := 0
+	for stream in _voice_streams():
+		if stream != null:
+			total += stream.data.size()
+	return total
 
 
 func _validate(stream: AudioStreamWAV, loop: bool) -> bool:
@@ -725,3 +984,20 @@ func _stream_peak(stream: AudioStreamWAV) -> float:
 		peak = maxi(peak, absi(int(data.decode_s16(i))))
 		i += 2
 	return float(peak) / 32767.0
+
+
+func _stream_rms(stream: AudioStreamWAV) -> float:
+	if stream == null:
+		return 0.0
+	var sum := 0.0
+	var count := 0
+	var data := stream.data
+	var i := 0
+	while i + 1 < data.size():
+		var v := float(data.decode_s16(i)) / 32767.0
+		sum += v * v
+		count += 1
+		i += 2
+	if count == 0:
+		return 0.0
+	return sqrt(sum / float(count))
