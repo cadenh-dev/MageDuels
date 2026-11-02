@@ -5,7 +5,7 @@ description: Route tasks in wizard-game-november-game-jam to its detected langua
 
 # wizard-game-november-game-jam Tool Router
 
-Generated from repository evidence on 2026-11-02T01:58:41+00:00.
+Generated from repository evidence on 2026-11-02T03:18:41+00:00.
 This is a **project-local** router. It describes what this repository uses; it does not
 prove a tool is installed. Check the runtime column before relying on a command.
 
@@ -13,14 +13,14 @@ prove a tool is installed. Check the runtime column before relying on a command.
 
 | Language | Files | Manifests | Frameworks | Confidence | Runtime |
 | --- | ---: | --- | --- | --- | --- |
-| gdscript | 18 | project.godot | — | high | NOT ON PATH |
+| gdscript | 29 | project.godot | — | high | NOT ON PATH |
 | python | 3 | — | — | medium | available |
 
 ## Route tasks
 
 | If the task is about... | Use | Evidence |
 | --- | --- | --- |
-| Files under the gdscript toolchain, or extensions .gd | `gdscript` toolchain | scripts/main.gd, scripts/ai/ai_wizard.gd, scripts/core/game.gd |
+| Files under the gdscript toolchain, or extensions .gd | `gdscript` toolchain | scripts/main.gd, scripts/ai/ai_wizard.gd, scripts/audio/synth.gd |
 | Files under the python toolchain, or extensions .ipynb, .py, .pyi | `python` toolchain | .opencode/skills/project-classifier/scripts/build_project_classifier.py, .opencode/skills/subagent-orchestrator/scripts/select_target.py, .opencode/skills/subagent-orchestrator/scripts/validate_plan.py |
 | git work | `git` | .git |
 | godot work | `godot` | project.godot, scenes/Main.tscn, scripts/ai/ai_wizard.gd |
@@ -57,7 +57,7 @@ The subagent should not choose a different stack because its model has a prefere
 
 - Machine-readable profile: [`data/project-profile.json`](data/project-profile.json)
 - Detailed evidence: [`references/evidence.md`](references/evidence.md)
-- Scan: 84 files; truncated=false
+- Scan: 216 files; truncated=false
 
 ## Warnings
 

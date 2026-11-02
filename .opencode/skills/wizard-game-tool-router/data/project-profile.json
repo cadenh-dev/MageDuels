@@ -1,6 +1,6 @@
 {
   "schema_version": 1,
-  "generated_at": "2026-11-02T01:58:41+00:00",
+  "generated_at": "2026-11-02T03:18:41+00:00",
   "root": "wizard-game-november-game-jam",
   "kind": "game",
   "primary_language": "gdscript",
@@ -8,20 +8,20 @@
   "languages": [
     {
       "name": "gdscript",
-      "files": 18,
+      "files": 29,
       "examples": [
         "scripts/main.gd",
         "scripts/ai/ai_wizard.gd",
+        "scripts/audio/synth.gd",
+        "scripts/core/audio.gd",
         "scripts/core/game.gd",
         "scripts/core/spell_data.gd",
         "scripts/core/spell_def.gd",
-        "scripts/ui/backdrop.gd",
-        "scripts/ui/hud.gd",
-        "scripts/ui/menu_screen.gd",
-        "scripts/ui/spell_card.gd",
-        "scripts/ui/spell_slot.gd",
-        "scripts/ui/ui_kit.gd",
-        "scripts/ui/wand_card.gd"
+        "scripts/debug/ai_test.gd",
+        "scripts/debug/balance_test.gd",
+        "scripts/debug/combat_test.gd",
+        "scripts/debug/flow_test.gd",
+        "scripts/debug/input_test.gd"
       ],
       "manifests": [
         "project.godot"
@@ -63,13 +63,24 @@
         "project.godot",
         "scenes/Main.tscn",
         "scripts/ai/ai_wizard.gd",
+        "scripts/audio/synth.gd",
+        "scripts/core/audio.gd",
         "scripts/core/game.gd",
         "scripts/core/spell_data.gd",
         "scripts/core/spell_def.gd",
+        "scripts/debug/ai_test.gd",
+        "scripts/debug/balance_test.gd",
+        "scripts/debug/combat_test.gd",
+        "scripts/debug/flow_test.gd",
+        "scripts/debug/input_test.gd",
+        "scripts/debug/lifetime_test.gd",
         "scripts/main.gd",
         "scripts/ui/backdrop.gd",
+        "scripts/ui/coach.gd",
+        "scripts/ui/craft_screen.gd",
         "scripts/ui/hud.gd",
         "scripts/ui/menu_screen.gd",
+        "scripts/ui/results_screen.gd",
         "scripts/ui/spell_card.gd",
         "scripts/ui/spell_slot.gd",
         "scripts/ui/ui_kit.gd",
@@ -91,7 +102,7 @@
     "gdscript is used by the project but its runtime is not on PATH"
   ],
   "scan": {
-    "files": 84,
+    "files": 216,
     "truncated": false
   }
 }

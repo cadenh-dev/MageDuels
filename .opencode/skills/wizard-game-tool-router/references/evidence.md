@@ -1,28 +1,28 @@
 # Evidence
 
-Generated: 2026-11-02T01:58:41+00:00
+Generated: 2026-11-02T03:18:41+00:00
 
 ## Languages
 
 ### gdscript (high)
 
-- Files: 18
+- Files: 29
 - Manifests: project.godot
 - Frameworks: —
 - Runtime on PATH: False (—)
 - Examples:
   - `scripts/main.gd`
   - `scripts/ai/ai_wizard.gd`
+  - `scripts/audio/synth.gd`
+  - `scripts/core/audio.gd`
   - `scripts/core/game.gd`
   - `scripts/core/spell_data.gd`
   - `scripts/core/spell_def.gd`
-  - `scripts/ui/backdrop.gd`
-  - `scripts/ui/hud.gd`
-  - `scripts/ui/menu_screen.gd`
-  - `scripts/ui/spell_card.gd`
-  - `scripts/ui/spell_slot.gd`
-  - `scripts/ui/ui_kit.gd`
-  - `scripts/ui/wand_card.gd`
+  - `scripts/debug/ai_test.gd`
+  - `scripts/debug/balance_test.gd`
+  - `scripts/debug/combat_test.gd`
+  - `scripts/debug/flow_test.gd`
+  - `scripts/debug/input_test.gd`
 
 ### python (medium)
 
@@ -38,7 +38,7 @@ Generated: 2026-11-02T01:58:41+00:00
 ## Tools
 
 - **git**: available=True path=C:\Program Files\Git\cmd\git.EXE evidence=.git
-- **godot**: available=False path=— evidence=project.godot, scenes/Main.tscn, scripts/ai/ai_wizard.gd, scripts/core/game.gd, scripts/core/spell_data.gd, scripts/core/spell_def.gd, scripts/main.gd, scripts/ui/backdrop.gd
+- **godot**: available=False path=— evidence=project.godot, scenes/Main.tscn, scripts/ai/ai_wizard.gd, scripts/audio/synth.gd, scripts/core/audio.gd, scripts/core/game.gd, scripts/core/spell_data.gd, scripts/core/spell_def.gd
 
 ## Frameworks
 
