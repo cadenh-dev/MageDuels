@@ -763,6 +763,59 @@ func _unlock_audio() -> void:
 		add_child(v)
 		v.finished.connect(v.queue_free)
 		v.play()
+	# Streams are baked, but some backends still initialize per-stream state on
+	# first play. Push every spell/impact/voice stream through silently now.
+	_warm_streams()
+
+
+## One silent frame per baked stream. This is the first-use cost the player
+## would otherwise pay on their first cast of each element.
+func _warm_streams() -> void:
+	var sfx := AudioStreamPlayer.new()
+	sfx.name = "WarmSfx"
+	sfx.bus = "SFX"
+	sfx.volume_db = -80.0
+	add_child(sfx)
+	var vox := AudioStreamPlayer.new()
+	vox.name = "WarmVoice"
+	vox.bus = "Voice"
+	vox.volume_db = -80.0
+	add_child(vox)
+
+	for id in SOUND_IDS:
+		var stream: AudioStreamWAV = _streams.get(id, null)
+		if stream == null:
+			continue
+		sfx.stream = stream
+		sfx.play()
+		await get_tree().process_frame
+	for note in _notes:
+		sfx.stream = note
+		sfx.play()
+		await get_tree().process_frame
+	for key in _voices:
+		var bank: Dictionary = _voices[key]
+		for cue in VOICE_CUES:
+			var stream: AudioStreamWAV = bank.get(cue, null)
+			if stream == null:
+				continue
+			vox.stream = stream
+			vox.play()
+			await get_tree().process_frame
+		var ladder: Array = bank.get("ladder", [])
+		for stream in ladder:
+			if not stream is AudioStreamWAV:
+				continue
+			vox.stream = stream
+			vox.play()
+			await get_tree().process_frame
+
+	sfx.stop()
+	sfx.stream = null
+	sfx.queue_free()
+	vox.stop()
+	vox.stream = null
+	vox.queue_free()
 
 
 # ---------------------------------------------------------------------------

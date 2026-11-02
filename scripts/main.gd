@@ -114,19 +114,8 @@ func _profile() -> void:
 	duel_active = true
 	round_running = true
 
-	var page_a: Array[SpellDef] = [
-		SpellDef.new("fire", "bolt"),
-		SpellDef.new("frost", "beam"),
-		SpellDef.new("fire", "nova"),
-		SpellDef.new("frost", "aegis"),
-	]
-	var page_b: Array[SpellDef] = [
-		SpellDef.new("storm", "orb"),
-		SpellDef.new("earth", "wall"),
-		SpellDef.new("storm", "bolt", "split"),
-		SpellDef.new("void", "beam", "pierce"),
-	]
-	player.pages = [page_a, page_b]
+	# Measure the real Arena spellbook, not a synthetic list: a stale mix here
+	# previously missed the two slots players reported as first-use hitches.
 	player.page = 0
 	player.selected_slot = 0
 	player.input_enabled = true
@@ -147,8 +136,10 @@ func _profile() -> void:
 				var now := Time.get_ticks_usec()
 				page_worst = maxf(page_worst, float(now - last) / 1000.0)
 				last = now
+			var spell: SpellDef = player.pages[page][slot]
+			var label := spell.display_name() if spell != null else "?"
 			worst = maxf(worst, page_worst)
-			print("PROFILE page=%d slot=%d max_frame=%.1fms" % [page, slot, page_worst])
+			print("PROFILE page=%d slot=%d %s max_frame=%.1fms" % [page, slot, label, page_worst])
 	print("PROFILE worst_frame=%.1fms" % worst)
 	get_tree().quit(0)
 

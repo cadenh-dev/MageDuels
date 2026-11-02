@@ -38,8 +38,21 @@
   The arena is a small opaque stage plus transparent VFX, so the prepass was
   costing more than the overdraw it saved. Verified on desktop GL and in the
   web build; the scene renders correctly.
-- **Material reuse** — projectile core/halo/trail and impact-burst materials are
-  cached per color instead of allocated on every cast.
+- **Material reuse** — projectile core/halo/trail, impact-burst, beam, shockwave,
+  and wall materials are cached per color instead of allocated on every cast.
+  Beam/shockwave/wall keep a static template and get a per-instance duplicate so
+  each effect can fade independently without recompiling the variant.
+- **Persistent VFX keepalive** — a few microscopic meshes under the floor hold
+  the wall/beam/shockwave programs and a size-52 Label3D holds the damage-number
+  glyph atlas. They stay resident after the boot warmup so the first real cast
+  or hit does not rebuild a program that the warmup already compiled.
+- **All damage-number digits warmed** — a `0123456789` Label3D at the real
+  damage-number size/raster settings renders during the warmup, so the first
+  hit does not rasterize a new glyph into the atlas.
+- **Silent audio-stream warmup** — on the first user gesture (when WebAudio is
+  allowed to start), every baked cast/impact/chant/voice stream is played once
+  at −80 dB on its real bus. This moves first-play backend initialization out of
+  the first spell cast while staying inaudible.
 - **No shadow passes for VFX** — projectile trails, bursts, and walls no longer
   cast shadows.
 - **Real-wizard shield + hit-flash warm-up** — the actual round wizards briefly
@@ -59,22 +72,26 @@
 Machine under normal load, Godot 4.7.2 GL Compatibility, 1280×720:
 
 ```
-AUDIO: baked in 1057 ms (voice 187 ms)
-PROFILE build_ms=23.6
-PROFILE page=0 slot=0 max_frame=20.4ms
-PROFILE page=0 slot=1 max_frame=18.1ms
-PROFILE page=0 slot=2 max_frame=18.8ms
-PROFILE page=0 slot=3 max_frame=20.0ms
-PROFILE page=1 slot=0 max_frame=18.9ms
-PROFILE page=1 slot=1 max_frame=21.8ms
-PROFILE page=1 slot=2 max_frame=20.9ms
-PROFILE page=1 slot=3 max_frame=20.2ms
-PROFILE worst_frame=21.8ms
+AUDIO: baked in 1036 ms (voice 191 ms)
+PROFILE build_ms=23.0
+PROFILE page=0 slot=0 Ember Bolt max_frame=20.8ms
+PROFILE page=0 slot=1 Frost Bolt max_frame=19.3ms
+PROFILE page=0 slot=2 Stone Ward max_frame=19.6ms
+PROFILE page=0 slot=3 Arcane Beam max_frame=20.3ms
+PROFILE page=1 slot=0 Storm Orb max_frame=22.1ms
+PROFILE page=1 slot=1 Ember Nova max_frame=20.2ms
+PROFILE page=1 slot=2 Frost Aegis max_frame=22.3ms
+PROFILE page=1 slot=3 Hasty Void Bolt max_frame=19.6ms
+PROFILE worst_frame=22.3ms
 ```
 
+`--profile` now casts the **real Arena 2.0 spellbook** (both pages, all eight
+slots in order) rather than a synthetic list. The previous list did not match
+the shipped pages, so it could not reproduce a slot-specific first-use report.
+
 The previous Aegis first-cast spike measured **123.4ms**; after the real-wizard
-shield warm-up it is **19–20ms**. Web boot measured **4.45s** engine-ready with
-audio at **1.06s**, zero console errors.
+shield warm-up it is **19–20ms**. Web boot measured **4.67s** engine-ready with
+audio at **1.04s**, zero console errors.
 
 ## Render pass detail
 

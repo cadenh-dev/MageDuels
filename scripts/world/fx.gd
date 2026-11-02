@@ -4,6 +4,8 @@ extends RefCounted
 ## Small procedural VFX helpers. No external assets required.
 
 static var _burst_materials: Dictionary = {}
+static var _beam_materials: Dictionary = {}
+static var _shock_materials: Dictionary = {}
 
 
 static func standard_material(color: Color, emission_strength: float = 0.0, unshaded: bool = false) -> StandardMaterial3D:
@@ -77,6 +79,24 @@ static func _burst_material(color: Color) -> StandardMaterial3D:
 	return _burst_materials[key]
 
 
+## Templates stay alive; each effect gets a duplicate so its own alpha tween
+## does not fade every other beam/shockwave of the same color.
+static func _beam_material(color: Color) -> StandardMaterial3D:
+	var key := color.to_html()
+	if not _beam_materials.has(key):
+		_beam_materials[key] = glow_material(color, 4.0)
+	var mat: StandardMaterial3D = _beam_materials[key].duplicate()
+	return mat
+
+
+static func _shock_material(color: Color) -> StandardMaterial3D:
+	var key := color.to_html()
+	if not _shock_materials.has(key):
+		_shock_materials[key] = glow_material(color, 4.0)
+	var mat: StandardMaterial3D = _shock_materials[key].duplicate()
+	return mat
+
+
 static func beam(parent: Node, from: Vector3, to: Vector3, color: Color, width: float = 0.09, duration: float = 0.18) -> void:
 	if parent == null or not parent.is_inside_tree():
 		return
@@ -93,7 +113,7 @@ static func beam(parent: Node, from: Vector3, to: Vector3, color: Color, width: 
 
 	var mi := MeshInstance3D.new()
 	mi.mesh = mesh
-	mi.material_override = glow_material(color, 4.0)
+	mi.material_override = _beam_material(color)
 	mi.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_OFF
 	parent.add_child(mi)
 
@@ -125,7 +145,7 @@ static func shockwave(parent: Node, pos: Vector3, color: Color, radius: float, d
 
 	var mi := MeshInstance3D.new()
 	mi.mesh = ring
-	var mat := glow_material(color, 4.0)
+	var mat := _shock_material(color)
 	mi.material_override = mat
 	mi.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_OFF
 	parent.add_child(mi)

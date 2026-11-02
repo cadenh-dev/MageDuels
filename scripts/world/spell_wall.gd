@@ -3,6 +3,8 @@ extends StaticBody3D
 
 ## Temporary elemental barrier. Blocks projectiles and beams.
 
+static var _materials: Dictionary = {}
+
 var duration: float = 7.0
 var color: Color = Color.WHITE
 var _max_duration: float = 7.0
@@ -31,9 +33,7 @@ func setup(p_color: Color, p_duration: float = 7.0, p_size: Vector3 = Vector3(2.
 	mi.mesh = mesh
 	mi.position = Vector3(0, p_size.y * 0.5, 0)
 
-	_mat = Fx.glow_material(Color(color.r, color.g, color.b, 0.36), 1.6)
-	_mat.transparency = BaseMaterial3D.TRANSPARENCY_ALPHA
-	_mat.cull_mode = BaseMaterial3D.CULL_DISABLED
+	_mat = _wall_material(color)
 	mi.material_override = _mat
 	mi.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_OFF
 	add_child(mi)
@@ -60,3 +60,16 @@ func _process(delta: float) -> void:
 		_fading = true
 		var tween := create_tween()
 		tween.tween_property(_mat, "albedo_color:a", 0.0, 1.4)
+
+
+## Keep one template per color so the transparent/cull-disabled shader program
+## survives between walls; duplicate per wall so each fades independently.
+static func _wall_material(c: Color) -> StandardMaterial3D:
+	var key := c.to_html()
+	if not _materials.has(key):
+		var mat := Fx.glow_material(Color(c.r, c.g, c.b, 0.36), 1.6)
+		mat.transparency = BaseMaterial3D.TRANSPARENCY_ALPHA
+		mat.cull_mode = BaseMaterial3D.CULL_DISABLED
+		_materials[key] = mat
+	var out: StandardMaterial3D = _materials[key].duplicate()
+	return out
