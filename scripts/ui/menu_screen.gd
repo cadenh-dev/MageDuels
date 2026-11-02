@@ -119,7 +119,7 @@ func _build_how_overlay() -> Control:
 		["BUILD", "Pick a wand, then craft two pages of four spells. Each spell is an Element + Form + Modifier."],
 		["MOVE", "WASD moves. The mouse aims. Stay inside the glowing ring."],
 		["QUICKCAST", "Press 1–4 to fire instantly. Cheap, fast, and easy to dodge."],
-		["CHANT", "Press SPACE to plant your feet and begin an incantation. Type the runes and press ENTER to overcast: +60% damage for -30% mana. You cannot move while chanting."],
+		["CHANT", "Press SPACE to plant your feet and begin an incantation. Type the runes and press ENTER to overcast: +80% damage for full mana. Hold the runes for 0.9s, you cannot move, and any direct hit breaks the chant."],
 		["SHIFT", "Tap SHIFT to swap spell pages mid-duel. Your two pages should cover different situations."],
 		["WIN", "First wizard to take two rounds wins. The arena element shifts every round and empowers matching spells by 15%."],
 	]

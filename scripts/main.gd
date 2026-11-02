@@ -30,13 +30,31 @@ func _ready() -> void:
 	if "--smoke" in args:
 		await _smoke_test()
 		return
+	if "--flow" in args:
+		var flow := FlowTest.new()
+		add_child(flow)
+		var flow_code: int = await flow.run(self)
+		get_tree().quit(flow_code)
+		return
+	if "--lifetime" in args:
+		var life := LifetimeTest.new()
+		add_child(life)
+		var life_code: int = await life.run(self)
+		get_tree().quit(life_code)
+		return
+	if "--ai" in args:
+		var ai_test := AITest.new()
+		add_child(ai_test)
+		var ai_code: int = await ai_test.run(self)
+		get_tree().quit(ai_code)
+		return
 	if "--test" in args:
 		var tester := CombatTest.new()
 		add_child(tester)
 		var code: int = await tester.run()
 		get_tree().quit(code)
 		return
-	for mode in ["--shot-menu", "--shot-wand", "--shot-craft", "--shot-duel", "--shot-result"]:
+	for mode in ["--shot-menu", "--shot-wand", "--shot-craft", "--shot-duel", "--shot-chant", "--shot-result"]:
 		if mode in args:
 			await _debug_shot(mode)
 			return
@@ -376,6 +394,12 @@ func _debug_shot(mode: String) -> void:
 			_build_duel()
 			player.input_enabled = true
 			ai.active = false
+		"--shot-chant":
+			Game.reset_match("ai")
+			_build_duel()
+			player.input_enabled = true
+			ai.active = true
+			ai._chant_cooldown = 0.0
 		"--shot-result":
 			Game.player_score = 2
 			Game.enemy_score = 1
@@ -386,6 +410,8 @@ func _debug_shot(mode: String) -> void:
 		player.set_aim_world(enemy.global_position)
 		player.quickcast(0)
 		await _wait(0.22)
+	if mode == "--shot-chant":
+		await _wait(1.0)
 	await _capture(mode.replace("--shot-", ""))
 
 

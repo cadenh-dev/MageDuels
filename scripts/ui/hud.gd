@@ -29,6 +29,7 @@ var _element_panel: PanelContainer
 var _chant_panel: PanelContainer
 var _chant_title: Label
 var _chant_text: RichTextLabel
+var _chant_progress: ProgressBar
 var _toast: Label
 var _toast_sub: Label
 var _toast_box: VBoxContainer
@@ -58,8 +59,10 @@ func connect_wizards() -> void:
 		player.damaged.connect(_on_player_damaged)
 		player.cast_blocked.connect(_on_cast_blocked)
 		player.chant_changed.connect(func(_w, _a) -> void: _refresh_chant())
+		player.chant_interrupted.connect(_on_chant_interrupted)
 	if enemy != null:
 		enemy.cast_blocked.connect(_on_cast_blocked)
+		enemy.chant_interrupted.connect(_on_chant_interrupted)
 
 
 func _build() -> void:
@@ -154,7 +157,7 @@ func _build_enemy_panel() -> void:
 	spacer.size_flags_horizontal = Control.SIZE_EXPAND_FILL
 	spacer.mouse_filter = Control.MOUSE_FILTER_IGNORE
 	header.add_child(spacer)
-	var rival := UIKit.bold_label("RIVAL", 16, UIKit.DANGER)
+	var rival := UIKit.bold_label(AIWizard.title_for(Game.enemy_wand), 14, UIKit.DANGER)
 	header.add_child(rival)
 
 	var hp_wrap := Control.new()
@@ -260,17 +263,18 @@ func _build_bottom_bar() -> void:
 
 	var hint_panel := UIKit.panel(Color(0.03, 0.02, 0.06, 0.7), Color(1, 1, 1, 0.06), 8)
 	hint_panel.set_anchors_and_offsets_preset(Control.PRESET_BOTTOM_LEFT)
-	hint_panel.position = Vector2(20, -46)
+	hint_panel.position = Vector2(20, -44)
+	hint_panel.custom_minimum_size = Vector2(0, 0)
 	hint_panel.mouse_filter = Control.MOUSE_FILTER_IGNORE
 	_root.add_child(hint_panel)
-	var hint := UIKit.label("WASD move  ·  Mouse aim  ·  1-4 quickcast  ·  SPACE chant  ·  SHIFT swap", 13, UIKit.MUTED)
+	var hint := UIKit.label("WASD · AIM · 1-4 · SPACE · SHIFT", 11, UIKit.MUTED)
 	hint.mouse_filter = Control.MOUSE_FILTER_IGNORE
 	hint_panel.add_child(hint)
 
-	_rival_channel = UIKit.bold_label("", 14, UIKit.GOLD)
+	_rival_channel = UIKit.bold_label("", 13, UIKit.GOLD)
 	_rival_channel.set_anchors_and_offsets_preset(Control.PRESET_CENTER_TOP)
-	_rival_channel.position = Vector2(-160, 104)
-	_rival_channel.custom_minimum_size = Vector2(320, 0)
+	_rival_channel.position = Vector2(-220, 140)
+	_rival_channel.custom_minimum_size = Vector2(440, 0)
 	_rival_channel.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
 	_rival_channel.mouse_filter = Control.MOUSE_FILTER_IGNORE
 	_root.add_child(_rival_channel)
@@ -306,7 +310,24 @@ func _build_chant() -> void:
 	_chant_text.add_theme_color_override("default_color", UIKit.MUTED)
 	box.add_child(_chant_text)
 
-	var hint := UIKit.label("ENTER to unleash  ·  ESC to cancel  ·  you are rooted", 12, UIKit.DIM)
+	_chant_progress = ProgressBar.new()
+	_chant_progress.custom_minimum_size = Vector2(540, 5)
+	_chant_progress.min_value = 0.0
+	_chant_progress.max_value = 1.0
+	_chant_progress.value = 0.0
+	_chant_progress.show_percentage = false
+	_chant_progress.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	var track := StyleBoxFlat.new()
+	track.bg_color = Color(0.03, 0.02, 0.06, 0.9)
+	track.set_corner_radius_all(3)
+	var fill := StyleBoxFlat.new()
+	fill.bg_color = UIKit.GOLD
+	fill.set_corner_radius_all(3)
+	_chant_progress.add_theme_stylebox_override("background", track)
+	_chant_progress.add_theme_stylebox_override("fill", fill)
+	box.add_child(_chant_progress)
+
+	var hint := UIKit.label("ENTER unleash  ·  ESC cancel  ·  hold the runes for 0.9s", 12, UIKit.DIM)
 	hint.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
 	hint.mouse_filter = Control.MOUSE_FILTER_IGNORE
 	box.add_child(hint)
@@ -464,6 +485,10 @@ func _refresh_chant() -> void:
 	if spell == null:
 		return
 	_chant_title.text = "CHANTING  ·  %s" % spell.display_name()
+	_chant_progress.value = player.chant_progress()
+	var fill_style := _chant_progress.get_theme_stylebox("fill") as StyleBoxFlat
+	if fill_style != null:
+		fill_style.bg_color = UIKit.GOLD if player.chant_progress() >= 1.0 else UIKit.ACCENT_DARK
 	var target := spell.incantation()
 	var typed := player.chant_text.length()
 	var count := 0
@@ -482,9 +507,20 @@ func _refresh_chant() -> void:
 
 func _update_rival_channel() -> void:
 	if enemy != null and is_instance_valid(enemy) and enemy.chanting:
-		_rival_channel.text = "RIVAL IS CHANTING…"
+		var spell := enemy.current_spell(enemy.chant_slot)
+		if spell != null:
+			_rival_channel.text = "RIVAL CHANTING  ·  %s  ·  INTERRUPT!" % spell.display_name().to_upper()
+		else:
+			_rival_channel.text = "RIVAL IS CHANTING…"
 	else:
 		_rival_channel.text = ""
+
+
+func _on_chant_interrupted(wiz: Wizard) -> void:
+	if wiz == player:
+		show_message("CHANT INTERRUPTED", UIKit.DANGER, 0.9)
+	else:
+		show_message("RIVAL'S CHANT BROKEN", UIKit.GOLD, 0.9)
 
 
 func _on_player_damaged(_wiz: Wizard, _amount: float) -> void:

@@ -30,7 +30,7 @@ Shift your spellbook. Shift your feet. Shift the duel.
 |---|---|---|
 | Health | 100 | No regeneration during a round |
 | Mana | 100 (wand-modified) | Regenerates ~12/s |
-| Overcast | +60% power, -30% mana | Requires a completed incantation |
+| Overcast | +80% power, full mana | Requires a 0.9s hold and a completed incantation; direct damage breaks it |
 
 ### Controls
 
@@ -45,7 +45,8 @@ Shift your spellbook. Shift your feet. Shift the duel.
 | Esc | Pause |
 
 While chanting you are **rooted**. Movement and quickcast are locked until the
-incantation completes or is cancelled. This is the risk/reward core.
+incantation completes or is cancelled. A chant needs 0.9s of hold time and is
+**interrupted by direct damage**, so it is a wager, not a discount.
 
 ### Runes
 

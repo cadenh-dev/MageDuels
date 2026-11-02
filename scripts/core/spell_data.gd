@@ -176,7 +176,7 @@ var WANDS: Dictionary = {
 	"emberwood": {
 		"name": "Emberwood",
 		"affinity": "fire",
-		"affinity_bonus": 0.30,
+		"affinity_bonus": 0.15,
 		"damage_mult": 1.05,
 		"cooldown_mult": 1.0,
 		"speed_mult": 1.0,
@@ -190,7 +190,7 @@ var WANDS: Dictionary = {
 	"frostglass": {
 		"name": "Frostglass",
 		"affinity": "frost",
-		"affinity_bonus": 0.35,
+		"affinity_bonus": 0.15,
 		"damage_mult": 1.0,
 		"cooldown_mult": 1.0,
 		"speed_mult": 1.0,
@@ -204,7 +204,7 @@ var WANDS: Dictionary = {
 	"stormbone": {
 		"name": "Stormbone",
 		"affinity": "storm",
-		"affinity_bonus": 0.35,
+		"affinity_bonus": 0.15,
 		"damage_mult": 0.95,
 		"cooldown_mult": 0.78,
 		"speed_mult": 1.15,
@@ -218,7 +218,7 @@ var WANDS: Dictionary = {
 	"voidheart": {
 		"name": "Voidheart",
 		"affinity": "void",
-		"affinity_bonus": 0.40,
+		"affinity_bonus": 0.15,
 		"damage_mult": 1.0,
 		"cooldown_mult": 0.95,
 		"speed_mult": 1.0,

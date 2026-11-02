@@ -208,7 +208,7 @@ func _build_tips() -> PanelContainer:
 	box.add_child(title)
 
 	var tips := [
-		"Type the gold incantation to OVERCAST: +60% damage for -30% mana — but you stand still while chanting.",
+		"Type the gold incantation to OVERCAST: +80% damage for full mana — hold 0.9s, and direct damage breaks the chant.",
 		"The arena element shifts every round and empowers matching spells by 15%. Pages A and B should cover different elements.",
 		"Quickcasts are free to spam but easy to read. Save a heavy or piercing spell for when the rival is rooted mid-chant.",
 	]
@@ -262,8 +262,14 @@ func _build_footer() -> HBoxContainer:
 	_mode_label.vertical_alignment = VERTICAL_ALIGNMENT_CENTER
 	footer.add_child(_mode_label)
 
+	var quick := UIKit.button("DUEL NOW", 19, UIKit.GOLD)
+	quick.custom_minimum_size = Vector2(170, 50)
+	quick.tooltip_text = "Accept this spellbook and start the duel immediately."
+	quick.pressed.connect(_duel_now)
+	footer.add_child(quick)
+
 	var begin := UIKit.button("BEGIN DUEL", 21)
-	begin.custom_minimum_size = Vector2(250, 50)
+	begin.custom_minimum_size = Vector2(210, 50)
 	begin.pressed.connect(_begin)
 	footer.add_child(begin)
 
@@ -350,5 +356,10 @@ func _update_rune_button(buttons: Dictionary, active_id: String, accent: Color) 
 
 
 func _begin() -> void:
+	Game.player_pages = _copy_pages(pages)
+	begin_pressed.emit()
+
+
+func _duel_now() -> void:
 	Game.player_pages = _copy_pages(pages)
 	begin_pressed.emit()

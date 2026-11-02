@@ -9,11 +9,13 @@ signal mana_changed(wizard, mana, max_mana)
 signal died(wizard)
 signal cast_fired(wizard, spell, stats, origin, direction)
 signal chant_changed(wizard, active)
+signal chant_interrupted(wizard)
 signal cast_blocked(wizard, reason)
 signal damaged(wizard, amount)
 
 const ARENA_RADIUS := 8.1
 const HIT_HEIGHT := 0.9
+const CHANT_MIN_TIME := 0.9
 
 var wizard_name := "Wizard"
 var is_player := false
@@ -42,6 +44,7 @@ var chanting := false
 var chant_slot := -1
 var chant_text := ""
 var chant_typos := 0
+var chant_elapsed := 0.0
 
 var burn_time := 0.0
 var burn_total := 0.0
@@ -59,6 +62,9 @@ var _muzzle: Node3D
 var _bar_fill: MeshInstance3D
 var _mana_fill: MeshInstance3D
 var _bar_width := 1.3
+var _crystal: MeshInstance3D
+var _chant_label: Label3D
+var _chant_ring: MeshInstance3D
 var _flash_meshes: Array[MeshInstance3D] = []
 var _flash_tween: Tween
 var _base_emission: Dictionary = {}
@@ -239,6 +245,7 @@ func _build_model() -> void:
 	crystal.position = Vector3(0, 1.68, 0)
 	crystal.material_override = Fx.glow_material(robe, 4.0)
 	staff.add_child(crystal)
+	_crystal = crystal
 
 	var light := OmniLight3D.new()
 	light.light_color = robe
@@ -266,6 +273,33 @@ func _build_model() -> void:
 	ring.material_override.transparency = BaseMaterial3D.TRANSPARENCY_ALPHA
 	add_child(ring)
 
+	# Chant telegraph: floating word + expanding ring.
+	_chant_ring = MeshInstance3D.new()
+	var chant_ring_mesh := TorusMesh.new()
+	chant_ring_mesh.inner_radius = 0.92
+	chant_ring_mesh.outer_radius = 1.06
+	chant_ring_mesh.rings = 32
+	chant_ring_mesh.ring_segments = 6
+	_chant_ring.mesh = chant_ring_mesh
+	_chant_ring.material_override = Fx.glow_material(Color("ffd166"), 3.0)
+	_chant_ring.position = Vector3(0, 0.05, 0)
+	_chant_ring.visible = false
+	_chant_ring.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_OFF
+	add_child(_chant_ring)
+
+	_chant_label = Label3D.new()
+	_chant_label.text = "CHANTING"
+	_chant_label.font_size = 48
+	_chant_label.outline_size = 14
+	_chant_label.modulate = Color("ffd166")
+	_chant_label.outline_modulate = Color(0.03, 0.02, 0.06, 0.95)
+	_chant_label.billboard = BaseMaterial3D.BILLBOARD_ENABLED
+	_chant_label.no_depth_test = true
+	_chant_label.pixel_size = 0.005
+	_chant_label.position = Vector3(0, 3.25, 0)
+	_chant_label.visible = false
+	add_child(_chant_label)
+
 
 func _build_bars() -> void:
 	var root := Node3D.new()
@@ -290,7 +324,7 @@ func _build_bars() -> void:
 	var fill_mesh := QuadMesh.new()
 	fill_mesh.size = Vector2(_bar_width, 0.1)
 	_bar_fill.mesh = fill_mesh
-	var fill_mat := Fx.glow_material(Color("66f2a5"), 2.4)
+	var fill_mat := Fx.glow_material(Color("66f2a5") if is_player else Color("ff5d73"), 2.4)
 	fill_mat.transparency = BaseMaterial3D.TRANSPARENCY_ALPHA
 	fill_mat.billboard_mode = BaseMaterial3D.BILLBOARD_ENABLED
 	fill_mat.no_depth_test = true
@@ -429,7 +463,10 @@ func begin_chant(slot: int) -> bool:
 	chant_slot = slot
 	chant_text = ""
 	chant_typos = 0
+	chant_elapsed = 0.0
 	selected_slot = slot
+	_set_chant_fx(true)
+	Fx.burst(get_parent(), global_position + Vector3.UP * 1.55, wand.get("color", Color.WHITE), 14, 3.5, 0.06, 0.45)
 	chant_changed.emit(self, true)
 	return true
 
@@ -466,6 +503,9 @@ func chant_finish() -> void:
 	if spell == null:
 		cancel_chant()
 		return
+	if chant_elapsed < CHANT_MIN_TIME:
+		cast_blocked.emit(self, "The runes are still forming…")
+		return
 	if chant_text != spell.incantation_compact():
 		cancel_chant()
 		return
@@ -477,12 +517,18 @@ func chant_finish() -> void:
 	_do_cast(chant_slot, true, check)
 
 
+func chant_progress() -> float:
+	return clampf(chant_elapsed / CHANT_MIN_TIME, 0.0, 1.0)
+
+
 func cancel_chant() -> void:
 	if not chanting:
 		return
 	chanting = false
 	chant_slot = -1
 	chant_text = ""
+	chant_elapsed = 0.0
+	_set_chant_fx(false)
 	chant_changed.emit(self, false)
 
 
@@ -503,6 +549,8 @@ func _do_cast(slot: int, overcast: bool, check: Dictionary) -> void:
 	chanting = false
 	chant_slot = -1
 	chant_text = ""
+	chant_elapsed = 0.0
+	_set_chant_fx(false)
 	chant_changed.emit(self, false)
 	mana_changed.emit(self, mana, max_mana)
 	cast_fired.emit(self, spell, stats, origin, dir)
@@ -536,6 +584,8 @@ func _tick_timers(delta: float) -> void:
 		stun_time -= delta
 		if stun_time <= 0.0 and chanting:
 			cancel_chant()
+	if chanting:
+		chant_elapsed += delta
 
 
 # ---- Damage --------------------------------------------------------------
@@ -543,6 +593,9 @@ func _tick_timers(delta: float) -> void:
 func take_damage(amount: float, element: String, source_pos: Vector3, knockback: float = 0.0, apply_status: bool = true) -> void:
 	if not alive:
 		return
+	if chanting:
+		cancel_chant()
+		chant_interrupted.emit(self)
 	_apply_direct_damage(amount, _element_color(element), true)
 
 	if apply_status:
@@ -596,7 +649,6 @@ func _die() -> void:
 	if not alive:
 		return
 	alive = false
-	chanting = false
 	cancel_chant()
 	Fx.burst(get_parent(), global_position + Vector3.UP * 1.0, wand.get("color", Color.WHITE), 40, 9.0, 0.12, 0.9)
 	var tween := create_tween()
@@ -680,6 +732,23 @@ func _animate(delta: float, moving: bool) -> void:
 	_model.rotation.z = sin(_bob * 0.5) * (0.035 if moving else 0.0)
 	if chanting:
 		_model.position.y += sin(_time * 18.0) * 0.015
+		if _chant_ring != null:
+			var s := 1.0 + sin(_time * 7.0) * 0.10
+			_chant_ring.scale = Vector3(s, 1.0, s)
+		if _crystal != null:
+			var c := 1.15 + sin(_time * 10.0) * 0.16
+			_crystal.scale = Vector3(c, c, c)
+		if _chant_label != null:
+			_chant_label.position.y = 3.25 + sin(_time * 3.0) * 0.05
+
+
+func _set_chant_fx(active: bool) -> void:
+	if _chant_ring != null:
+		_chant_ring.visible = active
+	if _chant_label != null:
+		_chant_label.visible = active
+	if _crystal != null and not active:
+		_crystal.scale = Vector3.ONE
 
 
 func _update_bars() -> void:

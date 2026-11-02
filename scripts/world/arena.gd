@@ -10,6 +10,9 @@ var walls: Node3D
 var camera: Camera3D
 var arena_element := "fire"
 
+signal impact_fx(at: Vector3, color: Color, strength: float)
+signal near_miss(wizard: Wizard, at: Vector3)
+
 var _cam_base := Vector3(0, 9.6, 13.2)
 var _shake_time := 0.0
 var _shake_amount := 0.0
@@ -20,6 +23,12 @@ var _element_light: OmniLight3D
 var _rim_mat: StandardMaterial3D
 var _env: Environment
 var _reticle: MeshInstance3D
+var _hitstop_until := 0
+var _flash_rect: ColorRect
+var _flash_until := 0
+var _flash_start := 0
+var _flash_duration := 60
+var _flash_alpha := 0.0
 
 
 func build(p_element: String) -> void:
@@ -33,6 +42,7 @@ func build(p_element: String) -> void:
 	_build_decor()
 	_build_camera()
 	_build_stars()
+	_build_flash()
 
 
 func _container(node_name: String) -> Node3D:
@@ -283,7 +293,32 @@ func _build_stars() -> void:
 	add_child(stars)
 
 
+func _build_flash() -> void:
+	var layer := CanvasLayer.new()
+	layer.layer = 4
+	add_child(layer)
+	_flash_rect = ColorRect.new()
+	_flash_rect.set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT)
+	_flash_rect.color = Color(1, 1, 1, 0)
+	_flash_rect.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	layer.add_child(_flash_rect)
+
+
 func _process(delta: float) -> void:
+	var now := Time.get_ticks_msec()
+	if _hitstop_until > 0 and now >= _hitstop_until:
+		_hitstop_until = 0
+		Engine.time_scale = 1.0
+
+	if _flash_until > 0:
+		var left := _flash_until - now
+		if left <= 0:
+			_flash_until = 0
+			if _flash_rect != null:
+				_flash_rect.color.a = 0.0
+		elif _flash_rect != null:
+			_flash_rect.color.a = _flash_alpha * (float(left) / float(maxi(1, _flash_duration)))
+
 	_time += delta
 	for i in _rocks.size():
 		var rock := _rocks[i]
@@ -309,6 +344,32 @@ func _process(delta: float) -> void:
 func shake(amount: float, duration: float = 0.2) -> void:
 	_shake_amount = maxf(_shake_amount, amount)
 	_shake_time = maxf(_shake_time, duration)
+
+
+func hitstop(duration_ms: int = 25, scale: float = 0.06) -> void:
+	Engine.time_scale = minf(Engine.time_scale, scale)
+	_hitstop_until = maxi(_hitstop_until, Time.get_ticks_msec() + duration_ms)
+
+
+func flash(color: Color, alpha: float = 0.2, duration: float = 0.06) -> void:
+	if _flash_rect == null:
+		return
+	_flash_rect.color = Color(color.r, color.g, color.b, alpha)
+	_flash_alpha = alpha
+	_flash_duration = maxi(1, int(duration * 1000.0))
+	_flash_start = Time.get_ticks_msec()
+	_flash_until = _flash_start + _flash_duration
+
+
+func impact(at: Vector3, color: Color, strength: float = 1.0) -> void:
+	hitstop(25)
+	flash(color.lightened(0.55), 0.18 + 0.10 * clampf(strength, 0.0, 1.0))
+	shake(0.12 * strength, 0.14)
+	impact_fx.emit(at, color, strength)
+
+
+func _exit_tree() -> void:
+	Engine.time_scale = 1.0
 
 
 func set_reticle(pos: Vector3, color: Color, show_reticle: bool = true) -> void:
@@ -353,7 +414,7 @@ func spawn_spell(caster: Wizard, spell: SpellDef, stats: Dictionary, origin: Vec
 		return
 	var s := stats.duplicate(true)
 	if spell.element == arena_element:
-		s["damage"] = float(s["damage"]) * 1.15
+		s["damage"] = float(s["damage"]) + float(s.get("base_damage", s["damage"])) * 0.15
 
 	var kind := str(s.get("kind", "projectile"))
 	match kind:
@@ -459,6 +520,7 @@ func _resolve_on(caster: Wizard, victim: Wizard, spell: SpellDef, s: Dictionary,
 	var damage := float(s.get("damage", 0.0))
 	if damage > 0.0:
 		victim.take_damage(damage, spell.element, from_pos, float(s.get("knockback", 0.0)))
+		impact(victim.global_position + Vector3.UP * 1.0, s.get("color", Color.WHITE), 0.7 if damage < 20.0 else 1.0)
 
 	# Element riders
 	match spell.element:
@@ -477,8 +539,6 @@ func _resolve_on(caster: Wizard, victim: Wizard, spell: SpellDef, s: Dictionary,
 					break
 			if chained:
 				shake(0.08, 0.12)
-
-	shake(0.13, 0.14)
 
 
 func spawn_position(index: int) -> Vector3:

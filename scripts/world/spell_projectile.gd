@@ -25,6 +25,7 @@ var _dead := false
 var _hit: Array[Wizard] = []
 var _spin := 0.0
 var _trail: CPUParticles3D
+var _near_missed := false
 
 
 func setup(p: Dictionary) -> void:
@@ -171,6 +172,13 @@ func _physics_process(delta: float) -> void:
 	_spin += delta * 9.0
 	rotate_y(_spin * 0.15)
 
+	if target != null and is_instance_valid(target) and not _near_missed:
+		var d := global_position.distance_to(target.global_position + Vector3.UP * 1.0)
+		if d < 1.55:
+			_near_missed = true
+			if arena != null and is_instance_valid(arena):
+				arena.near_miss.emit(target, global_position)
+
 
 func _impact(at: Vector3) -> void:
 	if _dead:
@@ -178,8 +186,7 @@ func _impact(at: Vector3) -> void:
 	_dead = true
 	if arena != null and is_instance_valid(arena):
 		Fx.burst(arena.effects, at, color, 20, 7.0, 0.1, 0.5)
-		if arena.has_method("shake"):
-			arena.shake(0.12, 0.12)
+		arena.impact(at, color, 0.55)
 	queue_free()
 
 

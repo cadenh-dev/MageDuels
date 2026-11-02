@@ -68,6 +68,7 @@ func base_stats() -> Dictionary:
 	pierce += int(m.get("pierce", 0))
 
 	return {
+		"base_damage": damage,
 		"damage": damage,
 		"mana": mana,
 		"cooldown": cooldown,
@@ -93,17 +94,18 @@ func resolved_stats(wand: Dictionary, overcast: bool = false) -> Dictionary:
 	var affinity: String = str(wand.get("affinity", ""))
 	var affinity_bonus: float = float(wand.get("affinity_bonus", 0.0))
 	var wand_damage: float = float(wand.get("damage_mult", 1.0))
+	var base_damage: float = float(s["base_damage"])
 
+	var final_damage: float = base_damage * wand_damage
 	if element == affinity:
-		wand_damage += affinity_bonus
+		final_damage += base_damage * affinity_bonus
 
-	s["damage"] = float(s["damage"]) * wand_damage
+	s["damage"] = final_damage
 	s["cooldown"] = float(s["cooldown"]) * float(wand.get("cooldown_mult", 1.0))
 	s["speed"] = float(s["speed"]) * float(wand.get("speed_mult", 1.0))
 
 	if overcast:
-		s["damage"] = float(s["damage"]) * 1.6
-		s["mana"] = float(s["mana"]) * 0.7
+		s["damage"] = float(s["damage"]) * 1.8
 		s["overcast"] = true
 
 	s["damage"] = snappedf(float(s["damage"]), 0.1)

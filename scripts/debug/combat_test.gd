@@ -111,14 +111,24 @@ func run() -> int:
 	for i in incant.length():
 		p.chant_key(incant.substr(i, 1))
 	_check("typing completes incantation", p.chant_text == incant, "typed '%s'" % p.chant_text)
+	p.chant_finish()
+	_check("windup blocks instant finish", p.chanting, "still chanting")
+	await _wait(1.0)
 	var e_hp_before := e.hp
 	p.chant_finish()
 	var spent := mana_before - p.mana
 	await _wait(0.85)
-	_check("overcast costs less mana", spent < float(spell.base_stats()["mana"]), "spent %.1f" % spent)
+	_check("overcast pays full mana", absf(spent - float(spell.base_stats()["mana"])) < 0.2, "spent %.1f" % spent)
 	var plain_damage := e_hp_before - e.hp
 	_check("overcast deals damage", plain_damage > 0.0, "damage %.1f" % plain_damage)
 	_check("overcast is empowered", plain_damage > 14.0, "damage %.1f" % plain_damage)
+
+	# --- Chant interrupt --------------------------------------------------
+	p.mana = p.max_mana
+	p.cooldowns = [0.0, 0.0, 0.0, 0.0]
+	_check("chant starts again", p.begin_chant(0))
+	p.take_damage(5.0, "void", Vector3.ZERO, 0.0)
+	_check("direct damage interrupts chant", not p.chanting)
 
 	# --- Page swap --------------------------------------------------------
 	var old_page := p.page
