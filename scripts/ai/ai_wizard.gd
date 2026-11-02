@@ -14,6 +14,16 @@ extends Node
 enum State { MOVE, WINDUP, TYPING, RECOVER }
 
 const ARCHETYPES := {
+	"apprentice": {
+		"title": "THE RIVAL",
+		"range": 6.2,
+		"strafe": 1.0,
+		"aggression": 1.0,
+		"chant_gap": 1.0,
+		"preferred": ["fire", "frost", "storm", "arcane", "void", "earth"],
+		"forms": ["bolt", "beam", "orb", "nova", "wall", "aegis"],
+		"windup": Vector2(0.38, 0.58),
+	},
 	"emberwood": {
 		"title": "CINDER VANGUARD",
 		"range": 4.7,

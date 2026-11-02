@@ -2,12 +2,13 @@
 
 # SHIFTCAST
 
-**Craft the rune. Shift the duel.**
+**Draft the boon. Shift the duel.**
 
 A 2.5D wizard duel for [Game Off 2026](https://itch.io/jam/game-off-2026) (theme: **SHIFT**).
-Build two pages of spells from elemental runes, then fight a named archmage in a
-best-of-three. Quickcast with the number keys, or plant your feet and **type the
-incantation** to overcast.
+Start with the **Apprentice Wand**, win three rounds, and draft a boon after each
+round — the loser picks first. Quickcast with the number keys, or plant your feet
+and **type the incantation** to overcast. Boons change your wand, your spellbook,
+and your stats for the rest of the match.
 
 Made with Godot 4.7.2. Browser-first, procedural art, no external gameplay assets.
 
@@ -40,9 +41,14 @@ A chant roots you for at least **0.9 seconds**, costs full mana, deals **+80%**
 damage, and is **broken by any direct hit**. Typing is the fast/high-skill route;
 the 1.4s hold is the accessible route. Releasing the hold in the **gold window
 (0.9–1.2s)** is a **PERFECT overcast** and fires sooner, so the pad has a hard
-mode as well. The rival follows the same rules.
+mode as well. The rival follows the same rules. **Ward** blocks projectiles;
+**Aegis** is a personal shield that absorbs 35 damage for 3s.
 
 ### The runes
+
+Both duelists start with the same Apprentice spellbook. After each round, the
+loser picks a boon first; boons add runes, switch wands, or boost stats, and last
+for the whole match. First to **three** rounds wins.
 
 - **Elements:** Fire, Frost, Storm, Earth, Arcane, Void
 - **Forms:** Bolt, Orb, Beam, Nova, Ward, Aegis
@@ -64,10 +70,10 @@ godot --path .
 
 # Headless checks
 godot --headless --path . -- --test      # spell math, wall/beam/nova, interrupts
-godot --headless --path . -- --flow      # round 1 -> round 2 -> match end -> rematch
+godot --headless --path . -- --flow      # 3 rounds + drafts -> match end -> rematch
 godot --headless --path . -- --lifetime  # 10 duel rebuilds, orphan check
 godot --headless --path . -- --ai        # rival telegraph, completion, interrupt
-godot --headless --path . -- --input     # unicode typing, Enter, Shift, rooting
+godot --headless --path . -- --input     # unicode typing, assist/perfect, controller maps
 godot --headless --path . -- --balance   # all wand x rune stat combinations
 godot --headless --path . -- --audio-selftest
 ```
@@ -89,7 +95,7 @@ Threads are **off** so the build runs on itch.io without COOP/COEP headers.
 scripts/core/     rune data, spell math, global game state
 scripts/world/    procedural arena, wizard, projectiles, walls, VFX
 scripts/ai/       rival state machine and wand archetypes
-scripts/ui/       title, wand select, crafting, HUD, results
+scripts/ui/       title, boon draft, HUD, results
 scripts/debug/    headless combat / flow / lifetime / AI tests
 design/           game design and jam plan
 ```

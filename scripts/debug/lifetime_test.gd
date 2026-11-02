@@ -16,6 +16,8 @@ func run(p_main: Node) -> int:
 	Game.enemy_wand = "stormbone"
 	Game.player_pages = SpellData.default_pages(Game.player_wand)
 	Game.enemy_pages = SpellData.default_pages(Game.enemy_wand)
+	Game.player_loadout = {}
+	Game.enemy_loadout = {}
 	Game.reset_match("ai")
 
 	var base_orphans: float = Performance.get_monitor(Performance.OBJECT_ORPHAN_NODE_COUNT)

@@ -2,14 +2,11 @@
 
 ## Pitch
 
-SHIFTCAST is a 2.5D wizard duel where you craft spells from runes and cast them by
-typing. Build two pages of eight spells, then outplay a named archmage across a
-best-of-three. Quickcasts are instant; planting your feet and typing an incantation
-unleashes an **overcast** at +80% damage, full mana, and a 0.9s hold — any direct hit
-breaks it. The arena's element shifts every round and empowers matching spells.
-
-Built for **Game Off 2026** (theme: **SHIFT**) in Godot 4.7.2 with a GL Compatibility,
-single-threaded web build that runs in the browser.
+SHIFTCAST is a 2.5D wizard duel where you start with the Apprentice Wand, win
+three rounds, and draft a boon after each one — the loser picks first. Boons add
+runes, switch wands, or boost stats. Cast instantly or plant your feet and type an
+incantation to overcast. Built for **Game Off 2026** (theme: **SHIFT**) in Godot
+4.7.2 with a GL Compatibility, single-threaded web build.
 
 ## Tags
 
@@ -32,8 +29,8 @@ wizard, duel, typing, spell-crafting, runes, 2.5d, web, godot, fantasy, strategy
 ## Screenshots (3)
 
 1. Title screen (1280 x 720)
-2. Mid-duel with HUD, chant panel, and the rival's `CHANTING` telegraph (1280 x 720)
-3. Victory / results screen (1280 x 720)
+2. Boon draft after a round (1280 x 720)
+3. Mid-duel with HUD, chant panel, and the rival's `CHANTING` telegraph (1280 x 720)
 
 ## Controls
 
@@ -53,8 +50,7 @@ wizard, duel, typing, spell-crafting, runes, 2.5d, web, godot, fantasy, strategy
 **Gamepad:** left stick move, right stick aim, `A/B/X/Y` cast slots 1–4, `RB`
 swap page, `LT` assisted overcast, `Start` pause. Release `LT` in the gold window
 for a PERFECT overcast, or hold to 1.4s to auto-cast. Menus navigate with the D-pad
-or left stick and `A`. The title screen's **QUICK DUEL** button skips wand select
-and crafting for a one-button start.
+or left stick and `A`. **ENTER THE ARENA** starts the match directly.
 
 ## Credits
 
@@ -69,7 +65,7 @@ and crafting for a one-button start.
 
 - [ ] Boots under 10 seconds on itch.io (measured ~6.3 s locally with audio)
 - [ ] Audio unlocks on first click/tap
-- [ ] Full best-of-three duel completes without errors
+- [ ] Full first-to-three duel with drafts completes without errors
 - [ ] No console errors in browser devtools
 - [ ] Threads disabled (single-threaded build) for the itch iframe
 - [ ] VRAM texture compression for desktop enabled

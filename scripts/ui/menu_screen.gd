@@ -2,7 +2,6 @@ class_name MenuScreen
 extends Control
 
 signal play_pressed
-signal quick_duel_pressed
 signal how_pressed
 signal quit_pressed
 
@@ -45,23 +44,17 @@ func _ready() -> void:
 	title.add_theme_constant_override("shadow_offset_y", 4)
 	box.add_child(title)
 
-	var subtitle := UIKit.label("Craft the rune.  Shift the duel.", 22, UIKit.MUTED)
+	var subtitle := UIKit.label("Draft the boon.  Shift the duel.", 22, UIKit.MUTED)
 	subtitle.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
 	box.add_child(subtitle)
 
 	box.add_child(UIKit.vspace(22))
 
-	var play := UIKit.button("DUEL THE ARCHMAGE", 24)
+	var play := UIKit.button("ENTER THE ARENA", 24)
 	play.custom_minimum_size = Vector2(470, 58)
 	play.pressed.connect(func() -> void: play_pressed.emit())
 	box.add_child(play)
 	_play_button = play
-
-	var quick := UIKit.button("QUICK DUEL  ·  DEFAULTS", 19, UIKit.GOLD)
-	quick.custom_minimum_size = Vector2(470, 48)
-	quick.tooltip_text = "Skip wand select and crafting: Emberwood with the default spellbook."
-	quick.pressed.connect(func() -> void: quick_duel_pressed.emit())
-	box.add_child(quick)
 
 	var how := UIKit.ghost_button("HOW TO PLAY", 19)
 	how.custom_minimum_size = Vector2(470, 48)
@@ -74,7 +67,7 @@ func _ready() -> void:
 		quit.pressed.connect(func() -> void: quit_pressed.emit())
 		box.add_child(quit)
 
-	var foot := UIKit.label("A 2.5D wizard duel  ·  Build spells, then type them under fire.", 14, UIKit.DIM)
+	var foot := UIKit.label("Win three rounds.  The loser picks the first boon.", 14, UIKit.DIM)
 	foot.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
 	foot.set_anchors_and_offsets_preset(Control.PRESET_BOTTOM_WIDE)
 	foot.offset_top = -64
@@ -127,12 +120,12 @@ func _build_how_overlay() -> Control:
 	box.add_child(UIKit.divider())
 
 	var lines := [
-		["BUILD", "Pick a wand, then craft two pages of four spells. Each spell is an Element + Form + Modifier."],
+		["BUILD", "Both duelists start with the Apprentice Wand and the same spellbook. Win rounds to earn boons."],
 		["MOVE", "WASD moves. The mouse aims. Stay inside the glowing ring."],
 		["QUICKCAST", "Press 1–4 to fire instantly. Cheap, fast, and easy to dodge."],
-		["CHANT", "Press SPACE to plant your feet and begin an incantation. Type the runes and press ENTER to overcast: +80% damage for full mana. Hold the runes for 0.9s, you cannot move, and any direct hit breaks the chant."],
-		["SHIFT", "Tap SHIFT to swap spell pages mid-duel. Your two pages should cover different situations."],
-		["WIN", "First wizard to take two rounds wins. The arena element shifts every round and empowers matching spells by 15%."],
+		["CHANT", "Press SPACE to plant your feet and begin an incantation. Type the runes and press ENTER to overcast: +80% damage for full mana. Hold the runes for 0.9s, you cannot move, and any direct hit breaks the chant. Hold F / RMB / LT to auto-cast instead."],
+		["DRAFT", "After each round the loser picks a boon first. Cards change your wand, add runes, or boost stats, and persist for the match."],
+		["WIN", "First wizard to take three rounds wins. The arena element shifts every round and empowers matching spells by 15%."],
 	]
 	for entry in lines:
 		var row := HBoxContainer.new()

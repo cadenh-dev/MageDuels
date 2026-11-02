@@ -241,9 +241,56 @@ var WANDS: Dictionary = {
 		"color": Color("ff4d9d"),
 		"blurb": "Void spells drain life. Low health, high risk.",
 	},
+	"apprentice": {
+		"name": "Apprentice",
+		"affinity": "",
+		"affinity_bonus": 0.0,
+		"damage_mult": 1.0,
+		"cooldown_mult": 1.0,
+		"speed_mult": 1.0,
+		"mana_max": 100.0,
+		"mana_regen": 11.0,
+		"hp": 100.0,
+		"move_speed": 5.5,
+		"color": Color("cfd6ff"),
+		"blurb": "A balanced training wand. No affinity, no tricks.",
+	},
 }
 
 const WAND_ORDER: Array[String] = ["emberwood", "frostglass", "stormbone", "voidheart"]
+
+## Draft boons for Arena 2.0. The loser picks first after each round.
+var CARDS: Array = [
+	{"id": "vitality", "name": "Vitality", "desc": "+20 max health", "kind": "hp", "amount": 20.0, "color": Color("66f2a5")},
+	{"id": "wellspring", "name": "Wellspring", "desc": "+20 max mana", "kind": "mana", "amount": 20.0, "color": Color("5bd1ff")},
+	{"id": "focus", "name": "Focus", "desc": "+10% spell damage", "kind": "damage", "amount": 0.10, "color": Color("ff8a5c")},
+	{"id": "haste", "name": "Haste", "desc": "+10% cast speed", "kind": "cast", "amount": 0.10, "color": Color("ffe066")},
+	{"id": "swiftness", "name": "Swiftness", "desc": "+8% move speed", "kind": "speed", "amount": 0.08, "color": Color("a78bfa")},
+	{"id": "barrier", "name": "Barrier", "desc": "Start each round with 20 shield", "kind": "shield", "amount": 20.0, "color": Color("8fe7ff")},
+	{"id": "wand_ember", "name": "Emberwood", "desc": "Switch wand: fire affinity, +30% fire damage", "kind": "wand", "wand_id": "emberwood", "color": Color("ff6b35")},
+	{"id": "wand_frost", "name": "Frostglass", "desc": "Switch wand: frost affinity, +35 max mana", "kind": "wand", "wand_id": "frostglass", "color": Color("74dcff")},
+	{"id": "wand_storm", "name": "Stormbone", "desc": "Switch wand: storm affinity, 22% faster casts", "kind": "wand", "wand_id": "stormbone", "color": Color("ffe066")},
+	{"id": "wand_void", "name": "Voidheart", "desc": "Switch wand: void affinity, lifedrain spells", "kind": "wand", "wand_id": "voidheart", "color": Color("ff4d9d")},
+	{"id": "rune_nova", "name": "Ember Nova", "desc": "Page B slot 4 becomes a heavy fire nova", "kind": "spell", "element": "fire", "form": "nova", "modifier": "heavy", "color": Color("ff6b35")},
+	{"id": "rune_aegis", "name": "Glacial Aegis", "desc": "Page B slot 4 becomes a frost Aegis", "kind": "spell", "element": "frost", "form": "aegis", "modifier": "", "color": Color("74dcff")},
+	{"id": "rune_lance", "name": "Void Lance", "desc": "Page B slot 4 becomes a piercing void beam", "kind": "spell", "element": "void", "form": "beam", "modifier": "pierce", "color": Color("ff4d9d")},
+]
+
+
+func apprentice_pages() -> Array:
+	var page_a: Array[SpellDef] = [
+		make("fire", "bolt"),
+		make("frost", "bolt"),
+		make("earth", "wall"),
+		make("arcane", "beam"),
+	]
+	var page_b: Array[SpellDef] = [
+		make("storm", "orb"),
+		make("fire", "nova"),
+		make("frost", "aegis"),
+		make("void", "bolt", "quick"),
+	]
+	return [page_a, page_b]
 
 
 func element_ids() -> Array[String]:

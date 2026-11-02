@@ -10,7 +10,7 @@ var _failures: Array[String] = []
 
 func run() -> int:
 	print("BALANCE: start")
-	for wand_id in SpellData.WAND_ORDER:
+	for wand_id in SpellData.WAND_ORDER + ["apprentice"]:
 		var wand: Dictionary = SpellData.wand(wand_id)
 		for element in SpellData.element_ids():
 			for form in SpellData.form_ids():

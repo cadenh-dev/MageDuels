@@ -5,7 +5,8 @@ extends Node
 
 const TITLE := "SHIFTCAST"
 const VERSION := "0.1.0"
-const ROUNDS_TO_WIN := 2
+const ROUNDS_TO_WIN := 3
+const ARENA_WAND := "apprentice"
 
 var mode: String = "ai" ## "ai" | "local" | "online"
 var player_wand: String = "emberwood"
@@ -17,6 +18,9 @@ var enemy_score: int = 0
 var round_index: int = 0
 var arena_element: String = "fire"
 var last_result: String = ""
+
+var player_loadout: Dictionary = {}
+var enemy_loadout: Dictionary = {}
 
 var ui_scale: float = 1.0
 var master_volume_db: float = 0.0
@@ -75,6 +79,125 @@ func wizard_kit(wand_id: String) -> Dictionary:
 		"color": w.get("color", Color.WHITE),
 		"affinity": str(w.get("affinity", "")),
 	}
+
+
+# --------------------------------------------------------------------------
+# Arena 2.0 loadouts and boon draft
+# --------------------------------------------------------------------------
+
+func new_loadout(wand_id: String, pages: Array) -> Dictionary:
+	var copied: Array = []
+	for p in pages:
+		var row: Array[SpellDef] = []
+		for s in p:
+			if s is SpellDef:
+				row.append((s as SpellDef).duplicate_spell())
+		copied.append(row)
+	return {
+		"wand_id": wand_id,
+		"pages": copied,
+		"bonus_hp": 0.0,
+		"bonus_mana": 0.0,
+		"bonus_damage": 0.0,
+		"bonus_cast": 0.0,
+		"bonus_speed": 0.0,
+		"start_shield": 0.0,
+		"affinity": "",
+		"cards": [],
+	}
+
+
+func start_arena() -> void:
+	player_loadout = new_loadout(ARENA_WAND, SpellData.apprentice_pages())
+	enemy_loadout = new_loadout(ARENA_WAND, SpellData.apprentice_pages())
+	player_wand = ARENA_WAND
+	enemy_wand = ARENA_WAND
+	player_pages = player_loadout["pages"]
+	enemy_pages = enemy_loadout["pages"]
+	reset_match("arena")
+
+
+func ensure_loadouts() -> void:
+	if player_loadout.is_empty():
+		var pages: Array = player_pages
+		if pages.is_empty():
+			pages = SpellData.apprentice_pages() if player_wand == ARENA_WAND else SpellData.default_pages(player_wand)
+		player_loadout = new_loadout(player_wand, pages)
+	if enemy_loadout.is_empty():
+		var epages: Array = enemy_pages
+		if epages.is_empty():
+			epages = SpellData.apprentice_pages() if enemy_wand == ARENA_WAND else SpellData.default_pages(enemy_wand)
+		enemy_loadout = new_loadout(enemy_wand, epages)
+
+
+func loadout_kit(loadout: Dictionary) -> Dictionary:
+	var wand_id := str(loadout.get("wand_id", ARENA_WAND))
+	var base: Dictionary = SpellData.wand(wand_id).duplicate(true)
+	var affinity := str(loadout.get("affinity", ""))
+	if affinity != "":
+		base["affinity"] = affinity
+		base["affinity_bonus"] = 0.15
+	base["damage_mult"] = float(base.get("damage_mult", 1.0)) + float(loadout.get("bonus_damage", 0.0))
+	base["cooldown_mult"] = maxf(0.35, float(base.get("cooldown_mult", 1.0)) * (1.0 - float(loadout.get("bonus_cast", 0.0))))
+
+	var kit := wizard_kit(wand_id)
+	kit["wand"] = base
+	kit["max_hp"] = float(base.get("hp", 100.0)) + float(loadout.get("bonus_hp", 0.0))
+	kit["max_mana"] = float(base.get("mana_max", 100.0)) + float(loadout.get("bonus_mana", 0.0))
+	kit["mana_regen"] = float(base.get("mana_regen", 11.0))
+	kit["move_speed"] = float(base.get("move_speed", 5.5)) * (1.0 + float(loadout.get("bonus_speed", 0.0)))
+	kit["color"] = base.get("color", Color.WHITE)
+	kit["affinity"] = str(base.get("affinity", ""))
+	kit["start_shield"] = float(loadout.get("start_shield", 0.0))
+	return kit
+
+
+func draw_offer(count: int, loadout: Dictionary) -> Array:
+	var pool: Array = []
+	for card in SpellData.CARDS:
+		if str(card.get("kind", "")) == "wand" and str(card.get("wand_id", "")) == str(loadout.get("wand_id", "")):
+			continue
+		if str(card.get("kind", "")) == "spell":
+			var pages: Array = loadout.get("pages", [])
+			if pages.size() > 1 and pages[1].size() > 3:
+				var current: SpellDef = pages[1][3]
+				if current != null and current.element == card["element"] and current.form == card["form"] and current.modifier == card.get("modifier", ""):
+					continue
+		pool.append(card)
+	pool.shuffle()
+	var offer: Array = []
+	for i in mini(count, pool.size()):
+		offer.append(pool[i])
+	return offer
+
+
+func apply_card(loadout: Dictionary, card: Dictionary) -> void:
+	match str(card.get("kind", "")):
+		"hp":
+			loadout["bonus_hp"] = float(loadout.get("bonus_hp", 0.0)) + float(card["amount"])
+		"mana":
+			loadout["bonus_mana"] = float(loadout.get("bonus_mana", 0.0)) + float(card["amount"])
+		"damage":
+			loadout["bonus_damage"] = minf(0.8, float(loadout.get("bonus_damage", 0.0)) + float(card["amount"]))
+		"cast":
+			loadout["bonus_cast"] = minf(0.45, float(loadout.get("bonus_cast", 0.0)) + float(card["amount"]))
+		"speed":
+			loadout["bonus_speed"] = minf(0.4, float(loadout.get("bonus_speed", 0.0)) + float(card["amount"]))
+		"shield":
+			loadout["start_shield"] = float(loadout.get("start_shield", 0.0)) + float(card["amount"])
+		"wand":
+			loadout["wand_id"] = str(card["wand_id"])
+			loadout["affinity"] = ""
+		"spell":
+			var pages: Array = loadout.get("pages", [])
+			while pages.size() < 2:
+				pages.append([])
+			while pages[1].size() < 4:
+				pages[1].append(SpellDef.new("fire", "bolt"))
+			pages[1][3] = SpellDef.new(str(card["element"]), str(card["form"]), str(card.get("modifier", "")))
+	var history: Array = loadout.get("cards", [])
+	history.append(str(card.get("id", "")))
+	loadout["cards"] = history
 
 
 func _install_input_map() -> void:

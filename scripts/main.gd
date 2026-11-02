@@ -69,7 +69,7 @@ func _ready() -> void:
 		var code: int = await tester.run()
 		get_tree().quit(code)
 		return
-	for mode in ["--shot-menu", "--shot-wand", "--shot-craft", "--shot-duel", "--shot-chant", "--shot-assist", "--shot-shield", "--shot-result"]:
+	for mode in ["--shot-menu", "--shot-wand", "--shot-craft", "--shot-duel", "--shot-chant", "--shot-assist", "--shot-shield", "--shot-draft", "--shot-result"]:
 		if mode in args:
 			await _debug_shot(mode)
 			return
@@ -99,21 +99,12 @@ func show_menu() -> void:
 	_clear_duel()
 	var menu := MenuScreen.new()
 	menu.play_pressed.connect(_on_play_pressed)
-	menu.quick_duel_pressed.connect(_on_quick_duel)
 	menu.how_pressed.connect(menu.show_how)
 	menu.quit_pressed.connect(func() -> void: get_tree().quit())
 	_swap_screen(menu)
 
 
 func _on_play_pressed() -> void:
-	show_wand()
-
-
-func _on_quick_duel() -> void:
-	Game.player_wand = "emberwood"
-	Game.player_pages = SpellData.default_pages(Game.player_wand)
-	Game.enemy_wand = _pick_enemy_wand()
-	Game.enemy_pages = SpellData.default_pages(Game.enemy_wand)
 	start_match()
 
 
@@ -147,13 +138,12 @@ func start_match() -> void:
 	_reset_pause()
 	_clear_screen()
 	_clear_duel()
-	Game.reset_match("ai")
-	if Game.enemy_pages.is_empty():
-		Game.enemy_pages = SpellData.default_pages(Game.enemy_wand)
+	Game.start_arena()
 	start_round()
 
 
 func start_round() -> void:
+	_clear_screen()
 	_clear_duel()
 	_build_duel()
 	_run_round_flow()
@@ -182,17 +172,23 @@ func _pick_enemy_wand() -> String:
 # --------------------------------------------------------------------------
 
 func _build_duel() -> void:
+	Game.ensure_loadouts()
+	var player_pages_now: Array = Game.player_loadout.get("pages", [])
+	var enemy_pages_now: Array = Game.enemy_loadout.get("pages", [])
+	Game.player_pages = player_pages_now
+	Game.enemy_pages = enemy_pages_now
+
 	arena = Arena.new()
 	world.add_child(arena)
 	arena.build(Game.arena_element)
 
 	player = Wizard.new()
-	player.setup("YOU", Game.wizard_kit(Game.player_wand), Game.player_pages, true)
+	player.setup("YOU", Game.loadout_kit(Game.player_loadout), player_pages_now, true)
 	arena.add_wizard(player)
 	player.global_position = arena.spawn_position(0)
 
 	enemy = Wizard.new()
-	enemy.setup("RIVAL", Game.wizard_kit(Game.enemy_wand), Game.enemy_pages, false)
+	enemy.setup("RIVAL", Game.loadout_kit(Game.enemy_loadout), enemy_pages_now, false)
 	arena.add_wizard(enemy)
 	enemy.global_position = arena.spawn_position(1)
 
@@ -304,8 +300,18 @@ func _on_death(wiz: Wizard) -> void:
 	if Game.match_over():
 		show_results()
 	else:
+		show_draft(not player_won)
+
+
+func show_draft(player_lost: bool) -> void:
+	_clear_duel()
+	var screen := DraftScreen.new()
+	screen.setup(player_lost, Game.player_loadout, Game.enemy_loadout, Game.round_index + 1)
+	screen.draft_complete.connect(func() -> void:
 		Game.next_round()
 		start_round()
+	)
+	_swap_screen(screen)
 
 
 # --------------------------------------------------------------------------
@@ -515,6 +521,11 @@ func _debug_shot(mode: String) -> void:
 			player.input_enabled = true
 			ai.active = false
 			player.add_shield(35.0, 3.0, Color("8fe7ff"))
+		"--shot-draft":
+			Game.start_arena()
+			Game.player_score = 1
+			Game.round_index = 1
+			show_draft(true)
 		"--shot-result":
 			Game.player_score = 2
 			Game.enemy_score = 1

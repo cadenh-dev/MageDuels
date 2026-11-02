@@ -16,21 +16,21 @@ overcast + perfect release, AI archetypes, audio, controller support, web export
 - **Aegis** (`TUTELA`) — a personal shield form. Absorbs 35 damage for 3s,
   overcast raises it to 52.5. The existing **Ward** (`MURUS`) still blocks
   projectiles and beams.
+- **Arena 2.0** — Apprentice Wand for both duelists, first to 3, and a
+  loser-first boon draft after every round. The Arena flow now starts directly
+  from the title and skips wand select/crafting.
 
 ## Requested modes
 
-### A. Arena 2.0 — Rounds-like (jam-sized rework)
+### A. Arena 2.0 — Rounds-like (jam-sized rework) — **DONE**
 
-- Both duelists start with the same **Apprentice Wand** (balanced, no affinity).
-- **First to 3** (best of 5) instead of first to 2.
-- After every round, a **card draft**:
-  - Loser picks first, then the winner, from a shared 3-card offer.
-  - Cards are rune unlocks, wand upgrades, or passive boons (+HP, +mana,
-    +damage, +cast speed, shield, extra projectile).
-- The full craft screen moves out of the arena path (or becomes the pre-match
-  loadout) so the draft is the progression.
-- Touches: `Game`, `main.gd`, new `DraftScreen`, HUD card strip, `spell_data`.
-- Effort: 2–3 focused days. **Recommended jam scope.**
+- Both duelists start with the same **Apprentice Wand** and spellbook.
+- **First to 3** (best of 5).
+- After every round, a **card draft**: loser picks first, then the winner.
+- Cards are stat boons, wand switches, or rune replacements; they persist.
+- The craft screen is out of the arena path; the draft is the progression.
+- Files: `game.gd` (loadouts/cards), `draft_screen.gd`, `boon_card.gd`,
+  `main.gd`, `menu_screen.gd`.
 
 ### B. Spell Sprint — casting-speed mode (self-contained)
 
@@ -75,10 +75,9 @@ overcast + perfect release, AI archetypes, audio, controller support, web export
 
 ## Recommended order
 
-1. **Arena 2.0** (normal wand + draft + first to 3) — directly addresses the
-   Rounds direction and keeps the existing duel as the foundation.
+1. ~~**Arena 2.0**~~ — done.
 2. **Spell Sprint** — one-day second mode; gives the jam page variety.
-3. **Aegis/defense polish + counterspell** — if the draft lands early.
+3. **Aegis/defense polish + counterspell** — if there is time before submission.
 4. **Battle Royale BR-1** — after the jam, as the next major milestone.
 
 Do not replace the working duel with a half-built BR before submission. A
@@ -87,9 +86,7 @@ a broken 8-player mode.
 
 ## Open decisions
 
-- Keep the craft screen in Arena 2.0, or replace it with the draft and move
-  crafting to BR/sandbox?
-- Best-of-5 with loser-first draft, or best-of-3 with one draft?
+- ~~Keep the craft screen in Arena 2.0, or replace it with the draft?~~ Replaced.
 - BR roster: 4 AI wizards first, or 8?
 - Online: dedicated Godot WebSocket server (reliable, needs hosting) or WebRTC
   P2P (cheap, needs signaling and NAT handling)?

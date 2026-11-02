@@ -1,7 +1,7 @@
 class_name FlowTest
 extends Node
 
-## End-to-end match flow: round 1 -> forced kill -> round 2 -> match end -> rematch.
+## Arena 2.0 end-to-end: round 1 -> draft -> round 2 -> draft -> round 3 -> results -> rematch.
 ## Run with: godot --headless -- --flow
 
 var _checks := 0
@@ -11,30 +11,37 @@ var main: Node
 
 func run(p_main: Node) -> int:
 	main = p_main
-	print("FLOW: start")
-	Game.player_wand = "emberwood"
-	Game.enemy_wand = "stormbone"
-	Game.player_pages = SpellData.default_pages(Game.player_wand)
-	Game.enemy_pages = SpellData.default_pages(Game.enemy_wand)
+	print("FLOW: start Arena 2.0")
+	Game.player_wand = "apprentice"
+	Game.enemy_wand = "apprentice"
 
 	main.start_match()
 	if not await _until(func() -> bool: return main.duel_active, 10.0, "round 1 starts"):
 		return _finish()
 	_check("round index starts at 0", Game.round_index == 0, "index=%d" % Game.round_index)
 	_check("score starts 0-0", Game.player_score == 0 and Game.enemy_score == 0)
+	_check("apprentice wand for both", Game.player_wand == "apprentice" and Game.enemy_wand == "apprentice")
+	_check("loadouts initialized", Game.player_loadout.get("cards", []).is_empty() and Game.enemy_loadout.get("cards", []).is_empty())
 
-	main.enemy.take_damage(9999.0, "void", main.player.global_position, 0.0)
-	if not await _until(func() -> bool:
-		return Game.player_score == 1 and Game.round_index == 1 and main.duel_active, 15.0, "round 2 starts"):
-		return _finish()
-	_check("round win recorded", Game.player_score == 1, "score=%d" % Game.player_score)
-	_check("round advanced", Game.round_index == 1, "index=%d" % Game.round_index)
-	_check("wizard rebuilt for round 2", main.enemy.is_alive() and main.player.is_alive())
+	for round_index in 3:
+		_check("round %d active" % (round_index + 1), main.duel_active)
+		main.enemy.take_damage(9999.0, "void", main.player.global_position, 0.0)
 
-	main.enemy.take_damage(9999.0, "void", main.player.global_position, 0.0)
-	if not await _until(func() -> bool: return main.current_screen is ResultsScreen, 12.0, "results screen"):
-		return _finish()
-	_check("match score 2-0", Game.player_score == 2 and Game.enemy_score == 0, "%d-%d" % [Game.player_score, Game.enemy_score])
+		if round_index < 2:
+			if not await _until(func() -> bool: return main.current_screen is DraftScreen, 12.0, "draft after round %d" % (round_index + 1)):
+				return _finish()
+			var draft := main.current_screen as DraftScreen
+			draft.auto_pick()
+			if not await _until(func() -> bool: return main.duel_active, 14.0, "round %d starts" % (round_index + 2)):
+				return _finish()
+			var expected := round_index + 1
+			_check("player drafted a card", Game.player_loadout.get("cards", []).size() == expected, "cards=%d" % Game.player_loadout.get("cards", []).size())
+			_check("rival drafted a card", Game.enemy_loadout.get("cards", []).size() == expected, "cards=%d" % Game.enemy_loadout.get("cards", []).size())
+		else:
+			if not await _until(func() -> bool: return main.current_screen is ResultsScreen, 12.0, "results screen"):
+				return _finish()
+
+	_check("match score 3-0", Game.player_score == 3 and Game.enemy_score == 0, "%d-%d" % [Game.player_score, Game.enemy_score])
 	_check("player won match", Game.player_won_match())
 	_check("duel torn down", main.player == null and main.enemy == null)
 
@@ -43,6 +50,7 @@ func run(p_main: Node) -> int:
 		return _finish()
 	_check("rematch resets score", Game.player_score == 0 and Game.enemy_score == 0, "%d-%d" % [Game.player_score, Game.enemy_score])
 	_check("rematch resets round", Game.round_index == 0, "index=%d" % Game.round_index)
+	_check("rematch resets boons", Game.player_loadout.get("cards", []).is_empty())
 
 	return _finish()
 

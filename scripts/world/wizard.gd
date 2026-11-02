@@ -83,7 +83,11 @@ func setup(p_name: String, p_kit: Dictionary, p_pages: Array, p_is_player: bool)
 	wizard_name = p_name
 	is_player = p_is_player
 	kit = p_kit
-	wand = SpellData.wand(str(p_kit.get("wand_id", "emberwood")))
+	var wand_override: Variant = p_kit.get("wand", null)
+	if wand_override is Dictionary:
+		wand = wand_override
+	else:
+		wand = SpellData.wand(str(p_kit.get("wand_id", "emberwood")))
 	pages = p_pages
 
 	max_hp = float(p_kit.get("max_hp", 100.0))
@@ -108,6 +112,8 @@ func setup(p_name: String, p_kit: Dictionary, p_pages: Array, p_is_player: bool)
 	_build_model()
 	_build_bars()
 	_build_shield()
+	if float(kit.get("start_shield", 0.0)) > 0.0:
+		add_shield(float(kit["start_shield"]), 60.0, wand.get("color", Color("8fe7ff")))
 
 
 func _ready() -> void:

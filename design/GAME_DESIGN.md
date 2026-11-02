@@ -17,10 +17,11 @@ Shift your spellbook. Shift your feet. Shift the duel.
 
 ## Core loop
 
-1. **Choose a wand** — each wand has an elemental affinity and a stat identity.
-2. **Craft two pages of four spells** — combine Element + Form + Modifier runes.
-3. **Duel** — dodge, quickcast, and find windows to plant your feet and chant.
-4. **Win 2 of 3 rounds** — the arena's shifting element changes each round.
+1. **Enter the arena** with the Apprentice Wand and a shared starting spellbook.
+2. **Duel** — first to three rounds; the arena element shifts each round.
+3. **Draft a boon** after each round — the loser picks first, then the winner.
+   Boons add runes, switch wands, or boost stats, and persist for the match.
+4. **Win three rounds** to take the match.
 
 ## Combat
 
@@ -92,9 +93,23 @@ assisted hold is the accessible alternative to typing.
 Incantation = element word + form word + optional modifier word, e.g.
 `IGNA MITT`, `GLACIA RUPTA`, `TERRA MITT GRAVIS`.
 
+### Wands
+
+Both duelists start with the balanced **Apprentice Wand** (no affinity). The draft
+can switch either duelist to Emberwood, Frostglass, Stormbone, or Voidheart. Each
+wand has its own affinity and stat identity; boons stack on top.
+
+### Boon draft
+
+After every round, the loser picks first from a three-card offer, then the winner
+picks from the remainder. Cards are stat boons (+HP, +mana, +damage, +cast speed,
++move speed, +starting shield), wand switches, or rune replacements for page B
+slot 4. Boons persist for the match.
+
 ## 2.5D presentation
 
 - Full 3D low-poly arena viewed from a raised side camera.
+- `C` / right-stick click toggles a follow camera centered on the player.
 - Gameplay happens on the XZ plane; depth is readable but shallow.
 - Emissive materials, floating runes, cosmic backdrop, simple light rigs.
 - All meshes generated procedurally so the jam build has no art-asset dependencies.
