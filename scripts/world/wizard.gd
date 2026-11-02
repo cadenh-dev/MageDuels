@@ -419,6 +419,10 @@ func _physics_process(delta: float) -> void:
 	if flat.length() > ARENA_RADIUS:
 		flat = flat.normalized() * ARENA_RADIUS
 		global_position = Vector3(flat.x, 0.0, flat.y)
+		var normal := Vector3(flat.x, 0.0, flat.y).normalized()
+		var outward := _knock.dot(normal)
+		if outward > 0.0:
+			_knock -= normal * outward
 
 	global_position.y = 0.0
 
@@ -658,9 +662,7 @@ func _tick_timers(delta: float) -> void:
 		if slow_time <= 0.0:
 			slow_amount = 0.0
 	if stun_time > 0.0:
-		stun_time -= delta
-		if stun_time <= 0.0 and chanting:
-			cancel_chant()
+		stun_time = maxf(0.0, stun_time - delta)
 	if shield_time > 0.0:
 		shield_time -= delta
 		if shield_time <= 0.0:
@@ -732,6 +734,9 @@ func take_damage(amount: float, element: String, source_pos: Vector3, knockback:
 				slow_amount = maxf(slow_amount, 0.4)
 			"earth":
 				stun_time = maxf(stun_time, 0.35)
+				if chanting:
+					cancel_chant()
+					chant_interrupted.emit(self)
 			"arcane":
 				mana = maxf(0.0, mana - 12.0)
 				mana_changed.emit(self, mana, max_mana)
@@ -834,6 +839,18 @@ func get_aim_direction() -> Vector3:
 	return d.normalized()
 
 
+## Stable direction for the model's facing. Do not derive this from the staff
+## muzzle: the muzzle rotates with the model, which can spiral at close range.
+func get_center_aim_direction() -> Vector3:
+	if aim_override != Vector3.INF:
+		return aim_override.normalized()
+	var d := aim_point - global_position
+	d.y = 0.0
+	if d.length() < 0.01:
+		return Vector3.FORWARD
+	return d.normalized()
+
+
 func set_aim_world(pos: Vector3) -> void:
 	aim_point = pos
 
@@ -841,7 +858,7 @@ func set_aim_world(pos: Vector3) -> void:
 func _update_facing() -> void:
 	if _model == null:
 		return
-	var d := get_aim_direction()
+	var d := get_center_aim_direction()
 	var target_y := atan2(-d.x, -d.z)
 	_model.rotation.y = lerp_angle(_model.rotation.y, target_y, 0.28)
 

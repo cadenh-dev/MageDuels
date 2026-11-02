@@ -99,6 +99,8 @@ func setup(p_wizard: Wizard, p_target: Wizard, p_arena: Arena) -> void:
 	wizard = p_wizard
 	target = p_target
 	arena = p_arena
+	# Run before the wizards consume their movement in physics.
+	process_physics_priority = -10
 
 	var wand_id := str(wizard.kit.get("wand_id", "emberwood"))
 	archetype = ARCHETYPES.get(wand_id, ARCHETYPES["emberwood"])
@@ -110,7 +112,7 @@ func setup(p_wizard: Wizard, p_target: Wizard, p_arena: Arena) -> void:
 	_strafe = 1.0 if randf() < 0.5 else -1.0
 
 
-func _process(delta: float) -> void:
+func _physics_process(delta: float) -> void:
 	if not active or wizard == null or not is_instance_valid(wizard) or not wizard.is_alive():
 		return
 	if target == null or not is_instance_valid(target) or not target.is_alive():

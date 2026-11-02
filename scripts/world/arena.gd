@@ -132,9 +132,9 @@ func _build_stage() -> void:
 	var shape := CollisionShape3D.new()
 	var cyl := CylinderShape3D.new()
 	cyl.radius = 9.0
-	cyl.height = 1.2
+	cyl.height = 0.9
 	shape.shape = cyl
-	shape.position = Vector3(0, -0.3, 0)
+	shape.position = Vector3(0, -0.45, 0)
 	body.add_child(shape)
 	add_child(body)
 
