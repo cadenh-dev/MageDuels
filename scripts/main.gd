@@ -273,6 +273,8 @@ func _build_duel() -> void:
 	# before a player can cast it.
 	player.add_shield(1.0, 0.08, player.wand.get("color", Color("8fe7ff")))
 	enemy.add_shield(1.0, 0.08, enemy.wand.get("color", Color("8fe7ff")))
+	player._flash()
+	enemy._flash()
 
 	player.cast_fired.connect(_on_cast)
 	enemy.cast_fired.connect(_on_cast)

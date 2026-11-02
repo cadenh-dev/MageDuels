@@ -115,8 +115,6 @@ func _build_visual() -> void:
 func _ready() -> void:
 	if _trail != null:
 		_trail.emitting = true
-	if arena != null and is_instance_valid(arena):
-		arena.pulse_spell_light(global_position, color)
 
 
 static func _core_material(c: Color) -> StandardMaterial3D:

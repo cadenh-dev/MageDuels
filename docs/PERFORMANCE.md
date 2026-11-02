@@ -27,16 +27,24 @@
   element × form color combination** render once in the **real viewport**
   (behind the loading screen). This compiles the same depth, transparent, MSAA,
   light, and particle pipelines the first duel uses.
-- **Stable light count** — per-projectile and per-wall `OmniLight3D` nodes were
-  removed. The arena now owns two pooled spell lights created at build time, so
-  casting never changes the scene's light list or forces pipeline rebuilds.
+- **Stable light count** — per-projectile, per-wall, and pooled dynamic spell
+  lights were removed entirely. Spells are emissive-only, so casting never
+  changes the scene's light list or forces pipeline rebuilds.
+- **MSAA off and real-time shadows off** — the 4× MSAA depth buffer and the
+  directional shadow depth pass were the remaining depth bandwidth. The arena
+  keeps its emissive rim, rings, and ambient light; the low-poly look was
+  verified without shadows.
+- **Depth prepass disabled** — `rendering/driver/depth_prepass/enable=false`.
+  The arena is a small opaque stage plus transparent VFX, so the prepass was
+  costing more than the overdraw it saved. Verified on desktop GL and in the
+  web build; the scene renders correctly.
 - **Material reuse** — projectile core/halo/trail and impact-burst materials are
   cached per color instead of allocated on every cast.
 - **No shadow passes for VFX** — projectile trails, bursts, and walls no longer
   cast shadows.
-- **Real-wizard shield warm-up** — the actual round wizards briefly show their
-  shield bubble at build time, compiling the per-wizard Aegis material before a
-  player can cast it.
+- **Real-wizard shield + hit-flash warm-up** — the actual round wizards briefly
+  show their shield bubble and white hit flash at build time, compiling the
+  per-wizard Aegis and damage-flash materials before a player can trigger them.
 - **`LoadingScreen`** — covers the audio bake and warm-up with a deliberate
   boot screen instead of a frozen menu.
 - **`.gdignore` files** in every generated/tooling folder. Godot no longer scans
@@ -51,22 +59,22 @@
 Machine under normal load, Godot 4.7.2 GL Compatibility, 1280×720:
 
 ```
-AUDIO: baked in 878 ms (voice 162 ms)
-PROFILE build_ms=25.6
-PROFILE page=0 slot=0 max_frame=22.4ms
-PROFILE page=0 slot=1 max_frame=20.0ms
-PROFILE page=0 slot=2 max_frame=20.1ms
-PROFILE page=0 slot=3 max_frame=19.1ms
-PROFILE page=1 slot=0 max_frame=20.8ms
-PROFILE page=1 slot=1 max_frame=19.6ms
-PROFILE page=1 slot=2 max_frame=19.1ms
-PROFILE page=1 slot=3 max_frame=23.4ms
-PROFILE worst_frame=23.4ms
+AUDIO: baked in 1057 ms (voice 187 ms)
+PROFILE build_ms=23.6
+PROFILE page=0 slot=0 max_frame=20.4ms
+PROFILE page=0 slot=1 max_frame=18.1ms
+PROFILE page=0 slot=2 max_frame=18.8ms
+PROFILE page=0 slot=3 max_frame=20.0ms
+PROFILE page=1 slot=0 max_frame=18.9ms
+PROFILE page=1 slot=1 max_frame=21.8ms
+PROFILE page=1 slot=2 max_frame=20.9ms
+PROFILE page=1 slot=3 max_frame=20.2ms
+PROFILE worst_frame=21.8ms
 ```
 
 The previous Aegis first-cast spike measured **123.4ms**; after the real-wizard
-shield warm-up it is **19–20ms**. Without the warm-up, the first cast/battle
-frame was the visible hitch.
+shield warm-up it is **19–20ms**. Web boot measured **4.45s** engine-ready with
+audio at **1.06s**, zero console errors.
 
 ## Render pass detail
 

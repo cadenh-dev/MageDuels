@@ -27,8 +27,6 @@ var _env: Environment
 var _reticle: MeshInstance3D
 var _hitstop_until := 0
 var _flash_rect: ColorRect
-var _spell_lights: Array[OmniLight3D] = []
-var _spell_light_index := 0
 var _flash_until := 0
 var _flash_start := 0
 var _flash_duration := 60
@@ -47,7 +45,6 @@ func build(p_element: String) -> void:
 	_build_camera()
 	_build_stars()
 	_build_flash()
-	_build_spell_lights()
 
 
 func _container(node_name: String) -> Node3D:
@@ -93,8 +90,7 @@ func _build_environment() -> void:
 	key.light_color = Color("cfd6ff")
 	key.light_energy = 0.55
 	key.rotation_degrees = Vector3(-52, -28, 0)
-	key.shadow_enabled = true
-	key.directional_shadow_max_distance = 32.0
+	key.shadow_enabled = false
 	add_child(key)
 
 	var fill := DirectionalLight3D.new()
@@ -309,30 +305,6 @@ func _build_flash() -> void:
 	layer.add_child(_flash_rect)
 
 
-func _build_spell_lights() -> void:
-	# A fixed pool keeps the scene's light count constant. Adding/removing an
-	# OmniLight per projectile forces GL Compatibility to rebuild light lists
-	# and shows up as depth/transparent pass spikes on every cast.
-	for i in 2:
-		var light := OmniLight3D.new()
-		light.light_color = Color.WHITE
-		light.light_energy = 0.0
-		light.omni_range = 4.5
-		light.shadow_enabled = false
-		add_child(light)
-		_spell_lights.append(light)
-
-
-func pulse_spell_light(pos: Vector3, color: Color, energy: float = 1.2) -> void:
-	if _spell_lights.is_empty():
-		return
-	var light := _spell_lights[_spell_light_index % _spell_lights.size()]
-	_spell_light_index += 1
-	light.global_position = Vector3(pos.x, 1.0, pos.z)
-	light.light_color = color
-	light.light_energy = energy
-
-
 func _process(delta: float) -> void:
 	var now := Time.get_ticks_msec()
 	if _hitstop_until > 0 and now >= _hitstop_until:
@@ -347,9 +319,6 @@ func _process(delta: float) -> void:
 				_flash_rect.color.a = 0.0
 		elif _flash_rect != null:
 			_flash_rect.color.a = _flash_alpha * (float(left) / float(maxi(1, _flash_duration)))
-
-	for light in _spell_lights:
-		light.light_energy = maxf(0.0, light.light_energy - delta * 8.0)
 
 	_time += delta
 	for i in _rocks.size():
