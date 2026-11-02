@@ -439,8 +439,10 @@ func set_paused(paused: bool) -> void:
 	_pause_root.visible = paused
 	if paused and _resume_button != null:
 		_resume_button.grab_focus()
-	elif _resume_button != null:
-		_resume_button.release_focus()
+	else:
+		var owner := get_viewport().gui_get_focus_owner()
+		if owner != null and _pause_root.is_ancestor_of(owner):
+			owner.release_focus()
 
 
 func _build_coach() -> void:
