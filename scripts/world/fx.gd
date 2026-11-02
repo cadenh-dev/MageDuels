@@ -89,7 +89,10 @@ static func beam(parent: Node, from: Vector3, to: Vector3, color: Color, width: 
 	var mid := (from + to) * 0.5
 	mi.global_position = mid
 	var dir := (to - from).normalized()
-	mi.look_at(mid + dir, Vector3.UP)
+	var up := Vector3.UP
+	if absf(dir.dot(Vector3.UP)) > 0.99:
+		up = Vector3.RIGHT
+	mi.look_at(mid + dir, up)
 	mi.rotate_object_local(Vector3.RIGHT, PI * 0.5)
 	mi.scale = Vector3(1.0, 1.0, 1.0)
 
