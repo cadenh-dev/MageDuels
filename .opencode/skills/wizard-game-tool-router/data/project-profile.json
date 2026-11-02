@@ -1,0 +1,97 @@
+{
+  "schema_version": 1,
+  "generated_at": "2026-11-02T01:58:41+00:00",
+  "root": "wizard-game-november-game-jam",
+  "kind": "game",
+  "primary_language": "gdscript",
+  "ambiguous": false,
+  "languages": [
+    {
+      "name": "gdscript",
+      "files": 18,
+      "examples": [
+        "scripts/main.gd",
+        "scripts/ai/ai_wizard.gd",
+        "scripts/core/game.gd",
+        "scripts/core/spell_data.gd",
+        "scripts/core/spell_def.gd",
+        "scripts/ui/backdrop.gd",
+        "scripts/ui/hud.gd",
+        "scripts/ui/menu_screen.gd",
+        "scripts/ui/spell_card.gd",
+        "scripts/ui/spell_slot.gd",
+        "scripts/ui/ui_kit.gd",
+        "scripts/ui/wand_card.gd"
+      ],
+      "manifests": [
+        "project.godot"
+      ],
+      "frameworks": [],
+      "runtime_available": false,
+      "runtime_path": null,
+      "confidence": "high"
+    },
+    {
+      "name": "python",
+      "files": 3,
+      "examples": [
+        ".opencode/skills/project-classifier/scripts/build_project_classifier.py",
+        ".opencode/skills/subagent-orchestrator/scripts/select_target.py",
+        ".opencode/skills/subagent-orchestrator/scripts/validate_plan.py"
+      ],
+      "manifests": [],
+      "frameworks": [],
+      "runtime_available": true,
+      "runtime_path": "C:\\Users\\minisforum-zach\\AppData\\Local\\Microsoft\\WindowsApps\\python3.EXE",
+      "confidence": "medium"
+    }
+  ],
+  "frameworks": [],
+  "tools": [
+    {
+      "name": "git",
+      "evidence": [
+        ".git"
+      ],
+      "available": true,
+      "path": "C:\\Program Files\\Git\\cmd\\git.EXE",
+      "note": "Version control"
+    },
+    {
+      "name": "godot",
+      "evidence": [
+        "project.godot",
+        "scenes/Main.tscn",
+        "scripts/ai/ai_wizard.gd",
+        "scripts/core/game.gd",
+        "scripts/core/spell_data.gd",
+        "scripts/core/spell_def.gd",
+        "scripts/main.gd",
+        "scripts/ui/backdrop.gd",
+        "scripts/ui/hud.gd",
+        "scripts/ui/menu_screen.gd",
+        "scripts/ui/spell_card.gd",
+        "scripts/ui/spell_slot.gd",
+        "scripts/ui/ui_kit.gd",
+        "scripts/ui/wand_card.gd",
+        "scripts/ui/wand_screen.gd",
+        "scripts/world/arena.gd",
+        "scripts/world/fx.gd",
+        "scripts/world/spell_projectile.gd",
+        "scripts/world/spell_wall.gd",
+        "scripts/world/wizard.gd"
+      ],
+      "available": false,
+      "path": null,
+      "note": "Runtime, playable scenes, 2D parallax"
+    }
+  ],
+  "commands": [],
+  "warnings": [
+    "gdscript is used by the project but its runtime is not on PATH"
+  ],
+  "scan": {
+    "files": 84,
+    "truncated": false
+  }
+}

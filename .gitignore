@@ -1,0 +1,22 @@
+# Godot 4+
+.godot/
+.import/
+export.cfg
+*.translation
+
+# Exported builds
+build/
+dist/
+
+# Debug artifacts
+screenshots/
+
+# OS / editor
+.DS_Store
+Thumbs.db
+*.tmp
+.vscode/
+.idea/
+
+# Local env
+.env
