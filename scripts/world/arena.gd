@@ -9,6 +9,8 @@ var effects: Node3D
 var walls: Node3D
 var camera: Camera3D
 var arena_element := "fire"
+var follow_camera := false
+var follow_target: Wizard
 
 signal impact_fx(at: Vector3, color: Color, strength: float)
 signal near_miss(wizard: Wizard, at: Vector3)
@@ -332,13 +334,30 @@ func _process(delta: float) -> void:
 	if _shake_time > 0.0:
 		_shake_time -= delta
 		var falloff := clampf(_shake_time / 0.25, 0.0, 1.0)
-		camera.position = _cam_base + Vector3(
+		camera.position = _camera_base() + Vector3(
 			randf_range(-1.0, 1.0) * _shake_amount * falloff,
 			randf_range(-1.0, 1.0) * _shake_amount * falloff,
 			0.0
 		)
 	else:
-		camera.position = camera.position.lerp(_cam_base, minf(1.0, delta * 8.0))
+		camera.position = camera.position.lerp(_camera_base(), minf(1.0, delta * 8.0))
+
+
+func _camera_base() -> Vector3:
+	if follow_camera and follow_target != null and is_instance_valid(follow_target):
+		return follow_target.global_position + Vector3(0.0, 9.6, 13.2)
+	return _cam_base
+
+
+func set_follow(enabled: bool, target: Wizard = null) -> void:
+	follow_camera = enabled
+	follow_target = target
+
+
+func toggle_follow(target: Wizard = null) -> bool:
+	follow_target = target
+	follow_camera = not follow_camera
+	return follow_camera
 
 
 func shake(amount: float, duration: float = 0.2) -> void:
@@ -426,6 +445,8 @@ func spawn_spell(caster: Wizard, spell: SpellDef, stats: Dictionary, origin: Vec
 			_spawn_nova(caster, spell, s)
 		"wall":
 			_spawn_wall(caster, spell, s, direction)
+		"shield":
+			_spawn_shield(caster, s)
 
 
 func _spawn_projectiles(caster: Wizard, spell: SpellDef, s: Dictionary, origin: Vector3, direction: Vector3) -> void:
@@ -506,6 +527,14 @@ func _spawn_wall(caster: Wizard, spell: SpellDef, s: Dictionary, direction: Vect
 	wall.global_position = Vector3(pos.x, 0.0, pos.z)
 	wall.rotation.y = atan2(direction.x, direction.z)
 	Fx.burst(effects, wall.global_position + Vector3.UP * 1.0, color, 18, 5.0, 0.08, 0.45)
+
+
+func _spawn_shield(caster: Wizard, s: Dictionary) -> void:
+	var color: Color = s.get("color", Color("8fe7ff"))
+	caster.add_shield(float(s.get("shield", 30.0)), float(s.get("duration", 3.0)), color)
+	Fx.shockwave(effects, caster.global_position, color, 1.7, 0.35)
+	Fx.burst(effects, caster.global_position + Vector3.UP * 1.0, color, 16, 4.0, 0.07, 0.4)
+	shake(0.06, 0.1)
 
 
 func resolve_hit(proj: SpellProjectile, victim: Wizard) -> void:

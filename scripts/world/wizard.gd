@@ -12,6 +12,7 @@ signal chant_changed(wizard, active)
 signal chant_interrupted(wizard)
 signal cast_blocked(wizard, reason)
 signal damaged(wizard, amount)
+signal shield_changed(wizard, shield_hp, shield_max)
 
 const ARENA_RADIUS := 8.1
 const HIT_HEIGHT := 0.9
@@ -55,6 +56,11 @@ var burn_tick := 0.0
 var slow_time := 0.0
 var slow_amount := 0.0
 var stun_time := 0.0
+var shield_hp := 0.0
+var shield_max := 0.0
+var shield_time := 0.0
+var _shield_color := Color("8fe7ff")
+var _shield_mesh: MeshInstance3D
 
 var _knock := Vector3.ZERO
 var _time := 0.0
@@ -101,6 +107,7 @@ func setup(p_name: String, p_kit: Dictionary, p_pages: Array, p_is_player: bool)
 
 	_build_model()
 	_build_bars()
+	_build_shield()
 
 
 func _ready() -> void:
@@ -302,6 +309,25 @@ func _build_model() -> void:
 	_chant_label.position = Vector3(0, 3.25, 0)
 	_chant_label.visible = false
 	add_child(_chant_label)
+
+
+func _build_shield() -> void:
+	_shield_mesh = MeshInstance3D.new()
+	var sphere := SphereMesh.new()
+	sphere.radius = 1.05
+	sphere.height = 2.1
+	sphere.radial_segments = 16
+	sphere.rings = 8
+	_shield_mesh.mesh = sphere
+	var mat := Fx.glow_material(Color(_shield_color.r, _shield_color.g, _shield_color.b, 0.22), 2.0)
+	mat.transparency = BaseMaterial3D.TRANSPARENCY_ALPHA
+	mat.blend_mode = BaseMaterial3D.BLEND_MODE_ADD
+	mat.cull_mode = BaseMaterial3D.CULL_DISABLED
+	_shield_mesh.material_override = mat
+	_shield_mesh.position = Vector3(0, 1.0, 0)
+	_shield_mesh.visible = false
+	_shield_mesh.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_OFF
+	add_child(_shield_mesh)
 
 
 func _build_bars() -> void:
@@ -629,6 +655,10 @@ func _tick_timers(delta: float) -> void:
 		stun_time -= delta
 		if stun_time <= 0.0 and chanting:
 			cancel_chant()
+	if shield_time > 0.0:
+		shield_time -= delta
+		if shield_time <= 0.0:
+			_clear_shield()
 	if chanting:
 		chant_elapsed += delta
 		if assisted_chant and chant_text.is_empty() and chant_elapsed >= CHANT_ASSIST_TIME:
@@ -637,9 +667,50 @@ func _tick_timers(delta: float) -> void:
 
 # ---- Damage --------------------------------------------------------------
 
+func add_shield(amount: float, duration: float, color: Color = Color("8fe7ff")) -> void:
+	if not alive:
+		return
+	_shield_color = color
+	shield_max = maxf(shield_max, amount)
+	shield_hp = maxf(shield_hp, amount)
+	shield_time = maxf(shield_time, duration)
+	if _shield_mesh != null:
+		_shield_mesh.visible = true
+		var mat := _shield_mesh.material_override as StandardMaterial3D
+		if mat != null:
+			mat.albedo_color = Color(color.r, color.g, color.b, 0.22)
+			mat.emission = color
+	shield_changed.emit(self, shield_hp, shield_max)
+
+
+func _clear_shield() -> void:
+	shield_hp = 0.0
+	shield_max = 0.0
+	shield_time = 0.0
+	if _shield_mesh != null:
+		_shield_mesh.visible = false
+	shield_changed.emit(self, 0.0, 0.0)
+
+
 func take_damage(amount: float, element: String, source_pos: Vector3, knockback: float = 0.0, apply_status: bool = true) -> void:
 	if not alive:
 		return
+
+	var incoming := amount
+	if shield_hp > 0.0:
+		var absorbed := minf(shield_hp, incoming)
+		shield_hp -= absorbed
+		incoming -= absorbed
+		Fx.burst(get_parent(), global_position + Vector3.UP * 1.0, _shield_color, 12, 3.5, 0.06, 0.35)
+		if shield_hp <= 0.0:
+			_clear_shield()
+		else:
+			shield_changed.emit(self, shield_hp, shield_max)
+	if incoming <= 0.0:
+		# The shield held: no damage, no status, no chant interrupt.
+		return
+	amount = incoming
+
 	if chanting and amount >= 5.0 and chant_elapsed >= 0.15:
 		cancel_chant()
 		chant_interrupted.emit(self)
@@ -697,6 +768,7 @@ func _die() -> void:
 		return
 	alive = false
 	cancel_chant()
+	_clear_shield()
 	Fx.burst(get_parent(), global_position + Vector3.UP * 1.0, wand.get("color", Color.WHITE), 40, 9.0, 0.12, 0.9)
 	var tween := create_tween()
 	tween.set_parallel(true)
@@ -787,6 +859,9 @@ func _animate(delta: float, moving: bool) -> void:
 			_crystal.scale = Vector3(c, c, c)
 		if _chant_label != null:
 			_chant_label.position.y = 3.25 + sin(_time * 3.0) * 0.05
+	if _shield_mesh != null and _shield_mesh.visible:
+		var sh := 1.0 + sin(_time * 6.0) * 0.03
+		_shield_mesh.scale = Vector3(sh, sh, sh)
 
 
 func _set_chant_fx(active: bool) -> void:

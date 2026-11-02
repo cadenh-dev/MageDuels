@@ -69,7 +69,7 @@ func _ready() -> void:
 		var code: int = await tester.run()
 		get_tree().quit(code)
 		return
-	for mode in ["--shot-menu", "--shot-wand", "--shot-craft", "--shot-duel", "--shot-chant", "--shot-assist", "--shot-result"]:
+	for mode in ["--shot-menu", "--shot-wand", "--shot-craft", "--shot-duel", "--shot-chant", "--shot-assist", "--shot-shield", "--shot-result"]:
 		if mode in args:
 			await _debug_shot(mode)
 			return
@@ -424,6 +424,11 @@ func _unhandled_input(event: InputEvent) -> void:
 		player.selected_slot = (player.selected_slot + 3) % 4
 	elif event.is_action_pressed("swap_page"):
 		player.swap_page()
+	elif event.is_action_pressed("toggle_camera"):
+		if arena != null and is_instance_valid(arena):
+			var following := arena.toggle_follow(player)
+			if hud != null and is_instance_valid(hud):
+				hud.show_message("CAMERA  ·  %s" % ("FOLLOW" if following else "ARENA"), UIKit.MUTED, 0.7)
 
 
 func _toggle_pause() -> void:
@@ -504,6 +509,12 @@ func _debug_shot(mode: String) -> void:
 			player.input_enabled = true
 			ai.active = false
 			player.begin_chant(0, true)
+		"--shot-shield":
+			Game.reset_match("ai")
+			_build_duel()
+			player.input_enabled = true
+			ai.active = false
+			player.add_shield(35.0, 3.0, Color("8fe7ff"))
 		"--shot-result":
 			Game.player_score = 2
 			Game.enemy_score = 1

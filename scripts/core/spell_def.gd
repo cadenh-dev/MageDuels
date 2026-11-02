@@ -67,6 +67,13 @@ func base_stats() -> Dictionary:
 	knockback *= float(m.get("knockback_mult", 1.0))
 	pierce += int(m.get("pierce", 0))
 
+	var kind := str(f.get("kind", "projectile"))
+	var status := str(e.get("desc", ""))
+	if kind == "shield":
+		status = "Shield %d for %.1fs" % [roundi(float(f.get("shield", 0.0))), float(f.get("duration", 0.0))]
+	elif kind == "wall":
+		status = "Barrier for %.1fs" % float(f.get("duration", 0.0))
+
 	return {
 		"base_damage": damage,
 		"damage": damage,
@@ -80,10 +87,11 @@ func base_stats() -> Dictionary:
 		"radius": float(f.get("radius", 0.3)),
 		"range": float(f.get("range", 15.0)),
 		"duration": float(f.get("duration", 0.0)),
+		"shield": float(f.get("shield", 0.0)),
 		"homing": bool(f.get("homing", false)),
-		"kind": str(f.get("kind", "projectile")),
+		"kind": kind,
 		"element": element,
-		"status": str(e.get("desc", "")),
+		"status": status,
 		"color": e["color"],
 	}
 
@@ -106,6 +114,8 @@ func resolved_stats(wand: Dictionary, overcast: bool = false) -> Dictionary:
 
 	if overcast:
 		s["damage"] = float(s["damage"]) * 1.8
+		if str(s.get("kind", "")) == "shield":
+			s["shield"] = float(s["shield"]) * 1.5
 		s["overcast"] = true
 
 	s["damage"] = snappedf(float(s["damage"]), 0.1)

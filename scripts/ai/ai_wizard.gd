@@ -31,7 +31,7 @@ const ARCHETYPES := {
 		"aggression": 0.88,
 		"chant_gap": 1.25,
 		"preferred": ["frost", "arcane"],
-		"forms": ["orb", "beam", "wall"],
+		"forms": ["orb", "beam", "wall", "aegis"],
 		"windup": Vector2(0.40, 0.60),
 	},
 	"stormbone": {
@@ -269,7 +269,8 @@ func _quick_cast() -> void:
 
 	if wizard.hp / wizard.max_hp < 0.45 and randf() < 0.4:
 		for slot in options:
-			if wizard.current_spell(slot).form == "wall":
+			var form := wizard.current_spell(slot).form
+			if form == "wall" or form == "aegis":
 				wizard.quickcast(slot)
 				return
 
@@ -284,6 +285,8 @@ func _score_spell(spell: SpellDef) -> float:
 		score += 0.45
 	if spell.form == "wall":
 		score += 1.2 if wizard.hp / wizard.max_hp < 0.6 else -0.6
+	if spell.form == "aegis":
+		score += 1.4 if wizard.hp / wizard.max_hp < 0.55 else -0.5
 	if spell.form == "nova" and wizard.global_position.distance_to(target.global_position) > 5.5:
 		score -= 0.8
 	if spell.form == "beam" and not _can_see_target():

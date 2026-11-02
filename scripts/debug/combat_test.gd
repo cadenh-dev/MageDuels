@@ -87,6 +87,20 @@ func run() -> int:
 		w.queue_free()
 	await _wait(0.1)
 
+	# --- Aegis shield -----------------------------------------------------
+	p.hp = p.max_hp
+	p.burn_time = 0.0
+	p.burn_total = 0.0
+	p.add_shield(30.0, 3.0, Color("8fe7ff"))
+	var hp_before_shield := p.hp
+	p.take_damage(20.0, "fire", Vector3.ZERO, 0.0)
+	_check("shield absorbs a hit", is_equal_approx(p.hp, hp_before_shield) and is_equal_approx(p.shield_hp, 10.0), "hp %.1f shield %.1f" % [p.hp, p.shield_hp])
+	p.take_damage(20.0, "fire", Vector3.ZERO, 0.0)
+	_check("shield breaks and bleeds through", p.hp < hp_before_shield and p.shield_hp <= 0.0, "hp %.1f shield %.1f" % [p.hp, p.shield_hp])
+	p.burn_time = 0.0
+	p.burn_total = 0.0
+	p.hp = p.max_hp
+
 	# --- Nova -------------------------------------------------------------
 	e.global_position = p.global_position + Vector3(2.0, 0, 0)
 	p.set_aim_world(e.global_position)

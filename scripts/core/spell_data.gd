@@ -121,6 +121,18 @@ var FORMS: Dictionary = {
 		"count": 1,
 		"duration": 7.0,
 	},
+	"aegis": {
+		"name": "Aegis",
+		"word": "TUTELA",
+		"kind": "shield",
+		"damage": 0.0,
+		"mana": 24.0,
+		"cooldown": 7.0,
+		"speed": 0.0,
+		"count": 1,
+		"duration": 3.0,
+		"shield": 35.0,
+	},
 }
 
 var MODIFIERS: Dictionary = {
@@ -239,7 +251,7 @@ func element_ids() -> Array[String]:
 
 
 func form_ids() -> Array[String]:
-	return ["bolt", "orb", "beam", "nova", "wall"]
+	return ["bolt", "orb", "beam", "nova", "wall", "aegis"]
 
 
 func modifier_ids() -> Array[String]:
@@ -269,7 +281,7 @@ func default_pages(wand_id: String) -> Array:
 		make(affinity, "nova", "heavy"),
 		make(secondary, "bolt", "split"),
 		make("arcane", "orb", "pierce"),
-		make("frost", "nova"),
+		make("frost", "aegis"),
 	]
 
 	return [page_a, page_b]

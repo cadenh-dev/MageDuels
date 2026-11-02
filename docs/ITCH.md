@@ -47,6 +47,7 @@ wizard, duel, typing, spell-crafting, runes, 2.5d, web, godot, fantasy, strategy
 | `F` / Right Mouse / `LT` (hold) | Assisted overcast — auto-casts after 1.4s |
 | Mouse wheel | Cycle the selected spell slot |
 | `Shift` / `RB` | Swap spell page (A ↔ B) |
+| `C` / `R3` | Toggle follow camera ↔ arena camera |
 | `Esc` / `Start` | Pause; cancel a chant while chanting |
 
 **Gamepad:** left stick move, right stick aim, `A/B/X/Y` cast slots 1–4, `RB`

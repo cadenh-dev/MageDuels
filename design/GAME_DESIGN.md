@@ -44,6 +44,7 @@ Shift your spellbook. Shift your feet. Shift the duel.
 | F / RMB / LT (hold) | Assisted overcast — 1.4s, no typing |
 | Mouse wheel | Cycle selected spell slot |
 | Shift / RB | Swap spell page |
+| C / R3 | Toggle camera |
 | Esc / Start | Pause |
 
 **Gamepad:** left stick move, right stick aim, face buttons cast, `LT` assisted
@@ -68,7 +69,7 @@ assisted hold is the accessible alternative to typing.
 | Arcane | ARCANA | Mana burn: steals 12 mana |
 | Void | VANA | Lifedrain: heals 25% of damage dealt |
 
-**Forms** (5)
+**Forms** (6)
 
 | Form | Word | Behaviour |
 |---|---|---|
@@ -77,6 +78,7 @@ assisted hold is the accessible alternative to typing.
 | Beam | RADIA | Instant ray |
 | Nova | RUPTA | Point-blank area burst |
 | Wall | MURUS | Temporary barrier |
+| Aegis | TUTELA | Personal shield: 35 damage / 3s |
 
 **Modifiers** (4)
 

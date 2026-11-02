@@ -91,6 +91,7 @@ func _install_input_map() -> void:
 	_add_keys("cast_3", [KEY_3])
 	_add_keys("cast_4", [KEY_4])
 	_add_keys("quick_swap", [KEY_Q])
+	_add_keys("toggle_camera", [KEY_C])
 	_add_mouse("cast_mouse", MOUSE_BUTTON_LEFT)
 
 	# Assisted overcast: hold RMB / F / left trigger for 1.4s.
@@ -109,6 +110,7 @@ func _install_input_map() -> void:
 	_add_joy_buttons("cast_3", [JOY_BUTTON_X])
 	_add_joy_buttons("cast_4", [JOY_BUTTON_Y])
 	_add_joy_buttons("swap_page", [JOY_BUTTON_RIGHT_SHOULDER, JOY_BUTTON_DPAD_LEFT])
+	_add_joy_buttons("toggle_camera", [JOY_BUTTON_RIGHT_STICK])
 	_add_joy_buttons("pause", [JOY_BUTTON_START])
 
 

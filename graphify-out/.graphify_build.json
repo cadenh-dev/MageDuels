@@ -1,0 +1,8 @@
+{
+  "excludes": [
+    ".opencode/**",
+    "assets/fonts/OFL-*.txt",
+    "graphify-out/**"
+  ],
+  "gitignore": true
+}

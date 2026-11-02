@@ -29,6 +29,7 @@ Made with Godot 4.7.2. Browser-first, procedural art, no external gameplay asset
 | `F` / Right Mouse / `LT` (hold) | **Assisted overcast** — auto-casts after 1.4s, no typing |
 | Mouse wheel | Cycle the selected spell slot |
 | `Shift` / `RB` | Swap spell page (A ↔ B) |
+| `C` / `R3` | Toggle follow camera ↔ arena camera |
 | `Esc` / `Start` | Pause / cancel a chant |
 
 **Gamepad:** left stick moves, right stick aims, `A/B/X/Y` cast slots 1–4, `RB`
@@ -44,7 +45,7 @@ mode as well. The rival follows the same rules.
 ### The runes
 
 - **Elements:** Fire, Frost, Storm, Earth, Arcane, Void
-- **Forms:** Bolt, Orb, Beam, Nova, Ward
+- **Forms:** Bolt, Orb, Beam, Nova, Ward, Aegis
 - **Modifiers:** Split, Heavy, Quick, Pierce
 
 An incantation is the element word plus the form word (plus an optional modifier

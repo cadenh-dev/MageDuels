@@ -33,15 +33,18 @@ func _check_spell(wand_id: String, wand: Dictionary, element: String, form: Stri
 	_check(label + " finite", _finite(plain), str(plain))
 	_check(label + " mana > 0", float(plain["mana"]) > 0.0, "%.2f" % float(plain["mana"]))
 	_check(label + " cooldown > 0", float(plain["cooldown"]) > 0.0, "%.2f" % float(plain["cooldown"]))
-	if form != "wall":
+	if form != "wall" and form != "aegis":
 		_check(label + " damage > 0", float(plain["damage"]) > 0.0, "%.2f" % float(plain["damage"]))
 		_check(label + " overcast > plain", float(over["damage"]) > float(plain["damage"]), "%.2f -> %.2f" % [float(plain["damage"]), float(over["damage"])])
+	if form == "aegis":
+		_check(label + " shield > 0", float(plain["shield"]) > 0.0, "%.2f" % float(plain["shield"]))
+		_check(label + " overcast shield > plain", float(over["shield"]) > float(plain["shield"]), "%.2f -> %.2f" % [float(plain["shield"]), float(over["shield"])])
 	_check(label + " overcast full mana", is_equal_approx(float(over["mana"]), float(plain["mana"])), "%.2f vs %.2f" % [float(over["mana"]), float(plain["mana"])])
 	_check(label + " finite overcast", _finite(over), str(over))
 
 
 func _finite(stats: Dictionary) -> bool:
-	for key in ["damage", "mana", "cooldown", "speed", "knockback", "radius"]:
+	for key in ["damage", "mana", "cooldown", "speed", "knockback", "radius", "shield"]:
 		if not is_finite(float(stats.get(key, 0.0))):
 			return false
 	return true

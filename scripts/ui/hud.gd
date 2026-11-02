@@ -15,6 +15,8 @@ var _enemy_hp: ProgressBar
 var _enemy_mana: ProgressBar
 var _player_hp_label: Label
 var _enemy_hp_label: Label
+var _player_shield_label: Label
+var _enemy_shield_label: Label
 var _hp_style: StyleBoxFlat
 var _hp_style_enemy: StyleBoxFlat
 var _mana_style: StyleBoxFlat
@@ -141,6 +143,11 @@ func _build_player_panel() -> void:
 	mana_wrap.add_child(_player_mana)
 	_mana_style = _player_mana.get_theme_stylebox("fill") as StyleBoxFlat
 
+	_player_shield_label = UIKit.bold_label("", 12, Color("8fe7ff"))
+	_player_shield_label.visible = false
+	_player_shield_label.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	box.add_child(_player_shield_label)
+
 
 func _build_enemy_panel() -> void:
 	var panel := UIKit.panel(Color(0.07, 0.05, 0.12, 0.86), UIColorBorder(), 12)
@@ -189,6 +196,12 @@ func _build_enemy_panel() -> void:
 	_enemy_mana = _make_bar(UIKit.MANA, true)
 	mana_wrap.add_child(_enemy_mana)
 	_mana_style_enemy = _enemy_mana.get_theme_stylebox("fill") as StyleBoxFlat
+
+	_enemy_shield_label = UIKit.bold_label("", 12, Color("8fe7ff"))
+	_enemy_shield_label.visible = false
+	_enemy_shield_label.horizontal_alignment = HORIZONTAL_ALIGNMENT_RIGHT
+	_enemy_shield_label.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	box.add_child(_enemy_shield_label)
 
 
 func _make_bar(color: Color, reverse: bool) -> ProgressBar:
@@ -476,6 +489,9 @@ func _update_bars() -> void:
 	_player_mana.max_value = player.max_mana
 	_player_mana.value = player.mana
 	_player_hp_label.text = "%d / %d" % [ceili(player.hp), ceili(player.max_hp)]
+	_player_shield_label.visible = player.shield_hp > 0.0
+	if player.shield_hp > 0.0:
+		_player_shield_label.text = "SHIELD  %d" % ceili(player.shield_hp)
 
 	var ratio := player.hp / player.max_hp
 	if _hp_style != null:
@@ -492,6 +508,9 @@ func _update_bars() -> void:
 		_enemy_mana.max_value = enemy.max_mana
 		_enemy_mana.value = enemy.mana
 		_enemy_hp_label.text = "%d / %d" % [ceili(enemy.hp), ceili(enemy.max_hp)]
+		_enemy_shield_label.visible = enemy.shield_hp > 0.0
+		if enemy.shield_hp > 0.0:
+			_enemy_shield_label.text = "SHIELD  %d" % ceili(enemy.shield_hp)
 		if _hp_style_enemy != null:
 			_hp_style_enemy.bg_color = UIKit.DANGER
 
