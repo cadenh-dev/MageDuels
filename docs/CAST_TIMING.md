@@ -64,6 +64,6 @@ frame (arcane bolt). That is one 60 Hz frame, not a multi-frame stall.
 - The boot warmup still runs first; these numbers are the first real use of each
   spell in the round, after the loader has compiled the shared render state.
 - The harness clears projectiles, walls, effects, shields, and status timers
-  between casts, and resets mana/cooldowns so every cast actually fires.
+  between casts, and resets mana so every cast actually fires.
 - The `--cast-timing-all` pass runs in its own process because running the Arena
   pages first would warm some of the matrix combos.

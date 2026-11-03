@@ -567,12 +567,9 @@ func _update_slots() -> void:
 	if player.page != _last_page:
 		_refresh_slots()
 	for i in _slots.size():
-		var slot := _slots[i]
-		var total: float = player.cooldown_max[i] if i < player.cooldown_max.size() else 1.0
-		var rem: float = player.cooldowns[i] if i < player.cooldowns.size() else 0.0
-		slot.cooldown_ratio = rem / maxf(0.001, total) if rem > 0.0 else 0.0
-		slot.cooldown_text = "%.1f" % rem if rem > 0.15 else ""
-		slot.selected = (i == player.selected_slot)
+		var sel := i == player.selected_slot
+		if _slots[i].selected != sel:
+			_slots[i].selected = sel
 
 
 func _refresh_slots() -> void:
@@ -622,7 +619,7 @@ func _refresh_chant() -> void:
 		_chant_title.text = "ASSISTED OVERCAST  ·  %s" % spell.display_name().to_upper()
 		_chant_text.text = "[color=#ffd166]%s[/color]" % spell.incantation()
 		_chant_hint.text = "HOLD %.1fs  ·  release in the gold window for PERFECT (+%d%%)  ·  auto at %.1fs" % [
-			player.chant_time_target(), roundi(SpellDef.PERFECT_DAMAGE_BONUS * 100.0), Wizard.CHANT_ASSIST_TIME
+			player.chant_time_target(), roundi(SpellDef.PERFECT_DAMAGE_BONUS * 100.0), player.assist_charge_time()
 		]
 		# Show the real perfect-release window on the bar. The bar's span is
 		# CHANT_ASSIST_TIME, so the window is two anchor ratios.
@@ -633,7 +630,7 @@ func _refresh_chant() -> void:
 		_chant_zone.anchor_right = clampf(window.y / span, 0.0, 1.0)
 	else:
 		_chant_title.text = "TYPED OVERCAST  ·  %s  ·  %d%%" % [spell.display_name().to_upper(), roundi(player.chant_accuracy() * 100.0)]
-		_chant_hint.text = "TYPE THE GOLD RUNES  ·  ENTER unleash  ·  ≥50%% = FIZZLE ×0.5  ·  hold %.1fs" % Wizard.CHANT_MIN_TIME
+		_chant_hint.text = "TYPE THE GOLD RUNES  ·  ENTER unleash  ·  ≥50%% = FIZZLE ×0.5  ·  hold %.1fs" % player.typed_charge_time()
 		_chant_zone.visible = false
 		var target := spell.incantation()
 		var typed := player.chant_text.length()

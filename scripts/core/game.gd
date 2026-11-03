@@ -76,6 +76,7 @@ func wizard_kit(wand_id: String) -> Dictionary:
 		"max_mana": float(w.get("mana_max", 100.0)),
 		"mana_regen": float(w.get("mana_regen", 10.0)),
 		"move_speed": float(w.get("move_speed", 5.5)),
+		"cast_time_mult": float(w.get("cast_time_mult", 1.0)),
 		"color": w.get("color", Color.WHITE),
 		"affinity": str(w.get("affinity", "")),
 	}
@@ -138,7 +139,7 @@ func loadout_kit(loadout: Dictionary) -> Dictionary:
 		base["affinity"] = affinity
 		base["affinity_bonus"] = 0.15
 	base["damage_mult"] = float(base.get("damage_mult", 1.0)) + float(loadout.get("bonus_damage", 0.0))
-	base["cooldown_mult"] = maxf(0.35, float(base.get("cooldown_mult", 1.0)) * (1.0 - float(loadout.get("bonus_cast", 0.0))))
+	base["cast_time_mult"] = maxf(0.35, float(base.get("cast_time_mult", 1.0)) * (1.0 - float(loadout.get("bonus_cast", 0.0))))
 
 	var kit := wizard_kit(wand_id)
 	kit["wand"] = base
@@ -146,6 +147,7 @@ func loadout_kit(loadout: Dictionary) -> Dictionary:
 	kit["max_mana"] = float(base.get("mana_max", 100.0)) + float(loadout.get("bonus_mana", 0.0))
 	kit["mana_regen"] = float(base.get("mana_regen", 11.0))
 	kit["move_speed"] = float(base.get("move_speed", 5.5)) * (1.0 + float(loadout.get("bonus_speed", 0.0)))
+	kit["cast_time_mult"] = float(base.get("cast_time_mult", 1.0))
 	kit["color"] = base.get("color", Color.WHITE)
 	kit["affinity"] = str(base.get("affinity", ""))
 	kit["start_shield"] = float(loadout.get("start_shield", 0.0))

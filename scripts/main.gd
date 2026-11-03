@@ -134,7 +134,6 @@ func _profile() -> void:
 	for page in 2:
 		player.page = page
 		for slot in 4:
-			player.cooldowns[slot] = 0.0
 			player.mana = player.max_mana
 			var last := Time.get_ticks_usec()
 			player.quickcast(slot)

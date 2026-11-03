@@ -69,7 +69,7 @@ overcast + perfect release, AI archetypes, audio, controller support, web export
 
 ### E. Casting-speed variants (optional)
 
-- **Duel tempo:** a modifier that halves all cooldowns and chant windows.
+- **Duel tempo:** a modifier that halves all chant windows and mana costs.
 - **Sudden death:** first clean hit wins; no regen.
 - **Spell Sprint** is the clean standalone version of this idea.
 

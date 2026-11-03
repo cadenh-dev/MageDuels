@@ -61,7 +61,7 @@ func latest_state(wizard_id: int) -> Dictionary:
 
 
 ## Interpolates position/aim at (latest tick - delay), with the latest state
-## providing discrete values such as hp, mana, cooldowns, and chant progress.
+## providing discrete values such as hp, mana, and chant progress.
 func interpolated_state(wizard_id: int, delay_ticks: float = 4.0) -> Dictionary:
 	if snapshots.is_empty():
 		return {}

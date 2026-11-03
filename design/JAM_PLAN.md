@@ -241,7 +241,7 @@ Add to the existing `--smoke` pattern in `main.gd:23`:
 |---|---|
 | `--smoke` | existing: cast lands, enemy HP drops |
 | `--flow` | forced kill → score 1 → next round → match end |
-| `--input` | synthetic keys: mana spent, cooldown > 0, rooted while chanting |
+| `--input` | synthetic keys: mana spent, rooted while chanting |
 | `--lifetime` | 10 duel cycles leave no orphans, `world` has 1 child |
 | `--balance` | all wand × element × form × modifier stats are finite and > 0 |
 

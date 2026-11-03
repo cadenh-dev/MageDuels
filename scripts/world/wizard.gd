@@ -22,7 +22,7 @@ const CHANT_MIN_TIME := 1.6
 const CHANT_ASSIST_TIME := 2.3
 const CHANT_PERFECT_END := 1.95
 ## A failed incantation is not wasted if the caster got at least this far.
-## It becomes a fizzle: half power, full mana and cooldown.
+## It becomes a fizzle: half power, full mana.
 const PARTIAL_CAST_RATIO := 0.5
 const PARTIAL_CAST_MULT := 0.5
 
@@ -41,11 +41,12 @@ var max_mana := 100.0
 var mana := 100.0
 var mana_regen := 11.0
 var move_speed := 5.5
+## Wand/boon multiplier on the chant windup. Lower is faster. Quickcasts have
+## no per-spell cooldown: mana is the only repeat-cast cost.
+var cast_time_mult := 1.0
 var alive := true
 var input_enabled := true
 
-var cooldowns: Array[float] = [0.0, 0.0, 0.0, 0.0]
-var cooldown_max: Array[float] = [0.4, 0.4, 0.4, 0.4]
 var aim_point := Vector3.ZERO
 var aim_override := Vector3.INF
 
@@ -105,6 +106,7 @@ func setup(p_name: String, p_kit: Dictionary, p_pages: Array, p_is_player: bool)
 	mana = max_mana
 	mana_regen = float(p_kit.get("mana_regen", 11.0))
 	move_speed = float(p_kit.get("move_speed", 5.5))
+	cast_time_mult = clampf(float(p_kit.get("cast_time_mult", 1.0)), 0.35, 1.5)
 
 	collision_layer = 2
 	collision_mask = 1
@@ -493,8 +495,6 @@ func can_cast(slot: int, overcast: bool = false, overcast_mult: float = SpellDef
 	var spell := current_spell(slot)
 	if spell == null:
 		return {"ok": false, "reason": "No spell in that slot."}
-	if cooldowns[slot] > 0.001:
-		return {"ok": false, "reason": "Recharging."}
 	var stats := spell.resolved_stats(wand, overcast, overcast_mult)
 	if mana < float(stats["mana"]):
 		return {"ok": false, "reason": "Not enough mana."}
@@ -573,7 +573,7 @@ func chant_finish() -> void:
 	if spell == null:
 		cancel_chant()
 		return
-	if chant_elapsed < CHANT_MIN_TIME:
+	if chant_elapsed < typed_charge_time():
 		cast_blocked.emit(self, "The runes are still forming…")
 		return
 	var full := spell.incantation_compact()
@@ -588,7 +588,7 @@ func chant_finish() -> void:
 
 	# A failed incantation still fires if the caster reached at least half of
 	# it. The fizzle is deliberately worse than a quickcast (×0.5 power) and
-	# still pays full mana and cooldown, so it is a consolation, not a combo.
+	# still pays full mana, so it is a consolation, not a combo.
 	var ratio := chant_accuracy()
 	if ratio < PARTIAL_CAST_RATIO:
 		cast_blocked.emit(self, "The incantation collapses — too few runes.")
@@ -626,12 +626,20 @@ func chant_progress() -> float:
 
 ## How long this chant needs to hold before it can be unleashed.
 func chant_time_target() -> float:
-	return CHANT_ASSIST_TIME if assisted_chant else CHANT_MIN_TIME
+	return assist_charge_time() if assisted_chant else typed_charge_time()
+
+
+func typed_charge_time() -> float:
+	return CHANT_MIN_TIME * cast_time_mult
+
+
+func assist_charge_time() -> float:
+	return CHANT_ASSIST_TIME * cast_time_mult
 
 
 ## The assisted hold's perfect-release window, as a (start, end) pair.
 func perfect_window() -> Vector2:
-	return Vector2(CHANT_MIN_TIME, CHANT_PERFECT_END)
+	return Vector2(typed_charge_time(), CHANT_PERFECT_END * cast_time_mult)
 
 
 func _finish_assisted() -> void:
@@ -651,10 +659,10 @@ func _finish_assisted() -> void:
 func assist_release() -> bool:
 	if not chanting or not assisted_chant:
 		return false
-	if chant_elapsed < CHANT_MIN_TIME:
+	if chant_elapsed < typed_charge_time():
 		cancel_chant()
 		return false
-	var perfect := chant_elapsed <= CHANT_PERFECT_END
+	var perfect := chant_elapsed <= perfect_window().y
 	var check := can_cast(chant_slot, true, SpellDef.ASSIST_OVERCAST_MULT)
 	if not bool(check["ok"]):
 		cast_blocked.emit(self, str(check["reason"]))
@@ -686,8 +694,6 @@ func _do_cast(slot: int, overcast: bool, check: Dictionary, perfect: bool = fals
 		stats["shield"] = snappedf(float(stats["shield"]) * bonus, 0.1)
 	stats["perfect"] = perfect
 	mana = maxf(0.0, mana - float(stats["mana"]))
-	cooldowns[slot] = float(stats["cooldown"])
-	cooldown_max[slot] = maxf(0.1, float(stats["cooldown"]))
 	selected_slot = slot
 	last_cast_slot = slot
 
@@ -710,8 +716,6 @@ func _do_cast(slot: int, overcast: bool, check: Dictionary, perfect: bool = fals
 
 func _tick_timers(delta: float) -> void:
 	_time += 0.0
-	for i in cooldowns.size():
-		cooldowns[i] = maxf(0.0, cooldowns[i] - delta)
 	if alive and mana < max_mana:
 		var regen := mana_regen * (0.5 if chanting else 1.0)
 		mana = minf(max_mana, mana + regen * delta)
@@ -740,7 +744,7 @@ func _tick_timers(delta: float) -> void:
 			_clear_shield()
 	if chanting:
 		chant_elapsed += delta
-		if assisted_chant and chant_text.is_empty() and chant_elapsed >= CHANT_ASSIST_TIME:
+		if assisted_chant and chant_text.is_empty() and chant_elapsed >= assist_charge_time():
 			_finish_assisted()
 
 

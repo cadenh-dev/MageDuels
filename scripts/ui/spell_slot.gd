@@ -1,7 +1,7 @@
 class_name SpellSlotWidget
 extends Control
 
-## HUD slot: key, spell name, cost, and a cooldown wipe.
+## HUD slot: key, spell name, incantation, mana cost, and modifier tag.
 
 var spell: SpellDef
 var key_text := "1"
@@ -10,11 +10,6 @@ var selected := false:
 	set(value):
 		selected = value
 		queue_redraw()
-var cooldown_ratio := 0.0:
-	set(value):
-		cooldown_ratio = value
-		queue_redraw()
-var cooldown_text := ""
 
 var _name: Label
 var _incant: Label
@@ -123,10 +118,3 @@ func _draw() -> void:
 
 	if spell != null:
 		draw_rect(Rect2(0, 12, 3, size.y - 24), accent, true)
-
-	if cooldown_ratio > 0.01:
-		var h := size.y * clampf(cooldown_ratio, 0.0, 1.0)
-		draw_rect(Rect2(1, 1, size.x - 2, h), Color(0.02, 0.01, 0.05, 0.72), true)
-		if cooldown_text != "":
-			var font := UIKit.bold_font()
-			draw_string(font, Vector2(10, 22), cooldown_text, HORIZONTAL_ALIGNMENT_LEFT, -1, 14, Color(1, 1, 1, 0.85))

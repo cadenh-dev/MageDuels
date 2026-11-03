@@ -42,7 +42,7 @@ WebSocket link with the same `send/poll` shape.
 - `w` wizard map:
   - `id`, `pos` (Vector3), `vel`, `aim`
   - `hp/max_hp`, `mana/max_mana`, `shield`
-  - `page`, `slot`, `cooldowns[4]`
+  - `page`, `slot`
   - `chant`, `chant_progress`, `chant_text_len`
   - `alive`, `burn`, `slow`, `stun`
 - `e` cast events:
@@ -65,9 +65,9 @@ quantized positions/angles should target **<512 bytes** for 2 wizards and
 
 ## Authority rules
 
-- Server owns position, HP, mana, shields, cooldowns, chant state, and spell
+- Server owns position, HP, mana, shields, chant state, and spell
   resolution. Clients send intent only.
-- Validate move magnitude, cast rate, mana, cooldowns, and range server-side.
+- Validate move magnitude, cast rate, mana, and range server-side.
 - Never accept a client-declared hit or reward.
 - Add client-side prediction for the local wizard later; keep remote wizards
   interpolated.

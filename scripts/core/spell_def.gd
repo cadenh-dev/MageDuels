@@ -61,7 +61,6 @@ func base_stats() -> Dictionary:
 
 	var damage: float = float(f["damage"]) * float(e["damage_mult"])
 	var mana: float = float(f["mana"]) * float(e["cost_mult"])
-	var cooldown: float = float(f["cooldown"])
 	var speed: float = float(f.get("speed", 0.0))
 	var count: int = int(f.get("count", 1))
 	var knockback: float = float(f.get("knockback", 0.0))
@@ -69,7 +68,6 @@ func base_stats() -> Dictionary:
 
 	damage *= float(m.get("damage_mult", 1.0))
 	mana *= float(m.get("cost_mult", 1.0))
-	cooldown *= float(m.get("cooldown_mult", 1.0))
 	speed *= float(m.get("speed_mult", 1.0))
 	count = int(m.get("count", count))
 	knockback *= float(m.get("knockback_mult", 1.0))
@@ -89,7 +87,6 @@ func base_stats() -> Dictionary:
 		"base_damage": damage,
 		"damage": damage,
 		"mana": mana,
-		"cooldown": cooldown,
 		"speed": speed,
 		"count": count,
 		"knockback": knockback,
@@ -122,7 +119,6 @@ func resolved_stats(wand: Dictionary, overcast: bool = false, overcast_mult: flo
 		final_damage += base_damage * affinity_bonus
 
 	s["damage"] = final_damage
-	s["cooldown"] = float(s["cooldown"]) * float(wand.get("cooldown_mult", 1.0))
 	s["speed"] = float(s["speed"]) * float(wand.get("speed_mult", 1.0))
 
 	if overcast:

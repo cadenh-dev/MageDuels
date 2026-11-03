@@ -62,7 +62,6 @@ func _measure_cast(spell: SpellDef, slot: int, mode: String, page: int = 0) -> v
 		print("CAST_TIMING: FAIL empty slot mode=%s page=%d slot=%d" % [mode, page, slot])
 		return
 
-	p.cooldowns[slot] = 0.0
 	p.mana = p.max_mana
 	p.stun_time = 0.0
 	p.cancel_chant()

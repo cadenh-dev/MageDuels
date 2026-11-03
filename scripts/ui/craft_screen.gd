@@ -176,7 +176,7 @@ func _build_picker() -> PanelContainer:
 	for id in SpellData.form_ids():
 		var f: Dictionary = SpellData.FORMS[id]
 		var b := _rune_button("%s\n%s" % [str(f["name"]), str(f["word"])], UIKit.ACCENT)
-		b.tooltip_text = "%d damage · %d mana · %.2fs" % [roundi(float(f["damage"])), roundi(float(f["mana"])), float(f["cooldown"])]
+		b.tooltip_text = "%d damage · %d mana" % [roundi(float(f["damage"])), roundi(float(f["mana"]))]
 		b.pressed.connect(_apply_form.bind(id))
 		fgrid.add_child(b)
 		_form_buttons[id] = b
@@ -211,7 +211,7 @@ func _build_tips() -> PanelContainer:
 
 	var tips := [
 		"TYPED OVERCAST: type the gold incantation, hold 1.6s, press ENTER. ×2.4 damage for full mana — direct damage breaks the chant.",
-		"FIZZLE: if you only get half the runes right, ENTER still casts at ×0.5 damage. Full mana and cooldown — a consolation, not a plan.",
+		"FIZZLE: if you only get half the runes right, ENTER still casts at ×0.5 damage. Full mana — a consolation, not a plan.",
 		"ASSISTED OVERCAST: hold F / RMB / LT for 2.3s instead. ×1.9 damage, no typing; release in the gold window for +15% PERFECT.",
 		"TRACK is a modifier: every projectile it touches curves toward the rival. Fire + TRACK makes seeking bolts, even at a bad angle.",
 		"The arena element shifts every round and empowers matching spells by 15%. Pages A and B should cover different elements.",
@@ -333,9 +333,9 @@ func _refresh_all() -> void:
 	_preview_incant.text = spell.incantation()
 	var st := spell.base_stats()
 	var over := spell.resolved_stats(SpellData.wand(Game.player_wand), true)
-	_preview_stats.text = "%d→%d dmg   %d mana   %.2fs   %s" % [
+	_preview_stats.text = "%d→%d dmg   %d mana   %s" % [
 		roundi(float(st["damage"])), roundi(float(over["damage"])),
-		roundi(float(st["mana"])), float(st["cooldown"]), st["kind"]
+		roundi(float(st["mana"])), st["kind"]
 	]
 	_preview_stats.text_overrun_behavior = TextServer.OVERRUN_TRIM_ELLIPSIS
 	_preview_status.text = str(st["status"])

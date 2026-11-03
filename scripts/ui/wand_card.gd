@@ -101,7 +101,7 @@ func _refresh(w: Dictionary) -> void:
 		["MANA", "%d" % roundi(float(w.get("mana_max", 100.0)))],
 		["RECOVERY", "%.1f/s" % float(w.get("mana_regen", 10.0))],
 		["MOVE", "%.1f" % float(w.get("move_speed", 5.5))],
-		["CAST SPEED", "%+d%%" % roundi((1.0 - float(w.get("cooldown_mult", 1.0))) * 100.0)],
+		["CAST SPEED", "%+d%%" % roundi((1.0 - float(w.get("cast_time_mult", 1.0))) * 100.0)],
 	]
 	for row in rows:
 		var h := HBoxContainer.new()

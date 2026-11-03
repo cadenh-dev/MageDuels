@@ -70,7 +70,6 @@ func run() -> int:
 
 	# --- Wall blocks ------------------------------------------------------
 	p.mana = p.max_mana
-	p.cooldowns = [0.0, 0.0, 0.0, 0.0]
 	p.set_aim_world(e.global_position)
 	_check("wall cast accepted", p.quickcast(2))
 	await _wait(0.25)
@@ -80,7 +79,6 @@ func run() -> int:
 			wall_count += 1
 	_check("wall spawned", wall_count == 1, "walls=%d" % wall_count)
 	var blocked_before := e.hp
-	p.cooldowns[0] = 0.0
 	p.quickcast(0)
 	await _wait(0.9)
 	_check("wall blocks bolt", is_equal_approx(e.hp, blocked_before), "hp %.1f -> %.1f" % [blocked_before, e.hp])
@@ -106,7 +104,6 @@ func run() -> int:
 	e.global_position = p.global_position + Vector3(2.0, 0, 0)
 	p.set_aim_world(e.global_position)
 	p.mana = p.max_mana
-	p.cooldowns = [0.0, 0.0, 0.0, 0.0]
 	e.hp = e.max_hp
 	var nova_before := e.hp
 	_check("nova cast accepted", p.quickcast(3))
@@ -142,7 +139,6 @@ func run() -> int:
 	p.global_position = Vector3(-6, 0, 0)
 	p.set_aim_world(e.global_position)
 	p.mana = p.max_mana
-	p.cooldowns = [0.0, 0.0, 0.0, 0.0]
 	var spell := p.current_spell(0)
 	var mana_before := p.mana
 	_check("chant starts", p.begin_chant(0))
@@ -152,7 +148,7 @@ func run() -> int:
 	_check("typing completes incantation", p.chant_text == incant, "typed '%s'" % p.chant_text)
 	p.chant_finish()
 	_check("windup blocks instant finish", p.chanting, "still chanting")
-	await _wait(Wizard.CHANT_MIN_TIME + 0.1)
+	await _wait(p.typed_charge_time() + 0.1)
 	var e_hp_before := e.hp
 	p.chant_finish()
 	var spent := mana_before - p.mana
@@ -167,7 +163,6 @@ func run() -> int:
 	e.burn_time = 0.0
 	e.burn_total = 0.0
 	p.mana = p.max_mana
-	p.cooldowns = [0.0, 0.0, 0.0, 0.0]
 	p.set_aim_world(e.global_position)
 	var fizzle_spell := p.current_spell(0)
 	var fizzle_text := fizzle_spell.incantation_compact()
@@ -177,7 +172,7 @@ func run() -> int:
 	for i in half:
 		p.chant_key(fizzle_text.substr(i, 1))
 	_check("partial typing reaches half", p.chant_accuracy() >= Wizard.PARTIAL_CAST_RATIO, "acc=%.2f" % p.chant_accuracy())
-	await _wait(Wizard.CHANT_MIN_TIME + 0.1)
+	await _wait(p.typed_charge_time() + 0.1)
 	var fizzle_hp := e.hp
 	p.chant_finish()
 	_check("partial incantation still casts", not p.chanting)
@@ -187,19 +182,17 @@ func run() -> int:
 	_check("fizzle skips status riders", e.burn_time <= 0.0, "burn=%.2f" % e.burn_time)
 
 	p.mana = p.max_mana
-	p.cooldowns = [0.0, 0.0, 0.0, 0.0]
 	last_stats = {}
 	var low := maxi(0, half - 1)
 	_check("low chant starts", p.begin_chant(0))
 	for i in low:
 		p.chant_key(fizzle_text.substr(i, 1))
-	await _wait(Wizard.CHANT_MIN_TIME + 0.1)
+	await _wait(p.typed_charge_time() + 0.1)
 	p.chant_finish()
 	_check("below half cancels instead", not p.chanting and last_stats.is_empty(), "stats=%s" % str(last_stats))
 
 	# --- Chant interrupt --------------------------------------------------
 	p.mana = p.max_mana
-	p.cooldowns = [0.0, 0.0, 0.0, 0.0]
 	_check("chant starts again", p.begin_chant(0))
 	await _wait(0.25)
 	p.take_damage(5.0, "void", Vector3.ZERO, 0.0)

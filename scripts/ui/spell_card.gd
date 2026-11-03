@@ -106,7 +106,7 @@ func _refresh() -> void:
 	_title.add_theme_color_override("font_color", UIKit.INK)
 	_incant.text = spell.incantation()
 	var s := spell.base_stats()
-	_stats.text = "%d dmg  ·  %d mana  ·  %.2fs" % [roundi(float(s["damage"])), roundi(float(s["mana"])), float(s["cooldown"])]
+	_stats.text = "%d dmg  ·  %d mana" % [roundi(float(s["damage"])), roundi(float(s["mana"]))]
 	_stats.text_overrun_behavior = TextServer.OVERRUN_TRIM_ELLIPSIS
 	if _note != null:
 		_note.text = str(s["status"])

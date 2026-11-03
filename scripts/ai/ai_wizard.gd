@@ -176,7 +176,7 @@ func _tick_windup(delta: float) -> void:
 		# charge, plus a little slack for a human player to interrupt it.
 		var spell := wizard.current_spell(_chant_slot)
 		var length := spell.incantation_compact().length() if spell != null else 12
-		_chant_timeout = Wizard.CHANT_MIN_TIME + float(length) * _typing_interval + 1.0
+		_chant_timeout = wizard.typed_charge_time() + float(length) * _typing_interval + 1.0
 		wizard.set_ai_move(Vector3.ZERO)
 	else:
 		# Small pulses make the wind-up readable from across the arena.
@@ -229,7 +229,7 @@ func _try_begin_chant() -> bool:
 	var options: Array[int] = []
 	for slot in 4:
 		var spell := wizard.current_spell(slot)
-		if spell == null or wizard.cooldowns[slot] > 0.0:
+		if spell == null:
 			continue
 		if spell.form == "wall":
 			continue
@@ -262,8 +262,6 @@ func _try_begin_chant() -> bool:
 func _quick_cast() -> void:
 	var options: Array[int] = []
 	for slot in 4:
-		if wizard.cooldowns[slot] > 0.0:
-			continue
 		var spell := wizard.current_spell(slot)
 		if spell == null:
 			continue

@@ -42,11 +42,11 @@ damage, and is **broken by any direct hit**. Typing is the strong, high-skill
 route; the 2.3s assisted hold is the accessible **×1.9** route. Releasing the
 hold in the **gold window (1.6–1.95s)** is a **PERFECT overcast** (+15% damage),
 so the pad has a hard mode as well. If you fumble the incantation but typed at
-least **half** of it, ENTER still fires a **fizzle** at **×0.5** power — full mana
-and cooldown, so it is a consolation rather than a plan. Every cast is named in
-the HUD and the rune words are spoken by the synthetic voice. The rival follows
-the same rules. **Ward** blocks projectiles; **Aegis** is a personal shield that
-absorbs 35 damage for 3s.
+least **half** of it, ENTER still fires a **fizzle** at **×0.5** power — full
+mana, so it is a consolation rather than a plan. Every cast is named in the HUD
+and the rune words are spoken by the synthetic voice. The rival follows the same
+rules. **Ward** blocks projectiles; **Aegis** is a personal shield that absorbs
+35 damage for 3s.
 
 ### The runes
 

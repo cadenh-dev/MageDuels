@@ -44,7 +44,6 @@ func add_wizard(id: int, pos: Vector3) -> void:
 		"shield": 0.0,
 		"page": 0,
 		"slot": 0,
-		"cooldowns": [0.0, 0.0, 0.0, 0.0],
 		"chant": false,
 		"chant_progress": 0.0,
 		"chant_text_len": 0,
@@ -80,9 +79,6 @@ func step(dt: float) -> void:
 			flat = flat.normalized() * ARENA_RADIUS
 			w["pos"] = Vector3(flat.x, 0.0, flat.y)
 		w["aim"] = input.get("aim", w.get("aim", Vector3.RIGHT))
-		var cds: Array = w["cooldowns"]
-		for i in cds.size():
-			cds[i] = maxf(0.0, float(cds[i]) - dt)
 
 	if tick % SNAPSHOT_EVERY == 0:
 		broadcast_snapshot()
