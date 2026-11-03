@@ -211,6 +211,7 @@ func _build_tips() -> PanelContainer:
 
 	var tips := [
 		"TYPED OVERCAST: type the gold incantation, hold 1.6s, press ENTER. ×2.4 damage for full mana — direct damage breaks the chant.",
+		"FIZZLE: if you only get half the runes right, ENTER still casts at ×0.5 damage. Full mana and cooldown — a consolation, not a plan.",
 		"ASSISTED OVERCAST: hold F / RMB / LT for 2.3s instead. ×1.9 damage, no typing; release in the gold window for +15% PERFECT.",
 		"TRACK is a modifier: every projectile it touches curves toward the rival. Fire + TRACK makes seeking bolts, even at a bad angle.",
 		"The arena element shifts every round and empowers matching spells by 15%. Pages A and B should cover different elements.",

@@ -632,8 +632,8 @@ func _refresh_chant() -> void:
 		_chant_zone.anchor_left = clampf(window.x / span, 0.0, 1.0)
 		_chant_zone.anchor_right = clampf(window.y / span, 0.0, 1.0)
 	else:
-		_chant_title.text = "TYPED OVERCAST  ·  %s" % spell.display_name().to_upper()
-		_chant_hint.text = "TYPE THE GOLD RUNES  ·  ENTER unleash  ·  ESC cancel  ·  hold %.1fs" % Wizard.CHANT_MIN_TIME
+		_chant_title.text = "TYPED OVERCAST  ·  %s  ·  %d%%" % [spell.display_name().to_upper(), roundi(player.chant_accuracy() * 100.0)]
+		_chant_hint.text = "TYPE THE GOLD RUNES  ·  ENTER unleash  ·  ≥50%% = FIZZLE ×0.5  ·  hold %.1fs" % Wizard.CHANT_MIN_TIME
 		_chant_zone.visible = false
 		var target := spell.incantation()
 		var typed := player.chant_text.length()
@@ -678,7 +678,9 @@ func _on_chant_interrupted(wiz: Wizard) -> void:
 
 func _on_cast(wiz: Wizard, spell: SpellDef, stats: Dictionary, _origin: Vector3, _direction: Vector3) -> void:
 	announce_cast(spell, stats, wiz == player)
-	if wiz == player and bool(stats.get("perfect", false)):
+	if wiz == player and bool(stats.get("fizzle", false)):
+		show_message("FIZZLED CAST  ·  %d%%" % roundi(float(stats.get("partial_ratio", 0.0)) * 100.0), UIKit.DIM, 0.9)
+	elif wiz == player and bool(stats.get("perfect", false)):
 		show_message("PERFECT OVERCAST", UIKit.GOLD, 0.8)
 
 
@@ -689,16 +691,19 @@ func announce_cast(spell: SpellDef, stats: Dictionary, is_player: bool) -> void:
 		return
 	var color := UIKit.spell_color(spell)
 	var overcast := bool(stats.get("overcast", false))
+	var fizzle := bool(stats.get("fizzle", false))
 	var mult := float(stats.get("overcast_mult", 1.0))
 	_cast_readout.text = "%s  ·  %s" % ["YOU" if is_player else "RIVAL", spell.display_name().to_upper()]
 	_cast_readout.add_theme_color_override("font_color", color if is_player else color.darkened(0.2))
 	var bits: Array[String] = [spell.incantation()]
+	if fizzle:
+		bits.append("FIZZLE ×%.1f  ·  %d%%" % [float(stats.get("fizzle_mult", Wizard.PARTIAL_CAST_MULT)), roundi(float(stats.get("partial_ratio", 0.0)) * 100.0)])
 	if overcast:
 		bits.append("×%.1f OVERCAST" % mult)
 		if bool(stats.get("perfect", false)):
 			bits.append("PERFECT")
 	_cast_sub.text = "   ".join(bits)
-	_cast_sub.add_theme_color_override("font_color", UIKit.GOLD if overcast else UIKit.DIM)
+	_cast_sub.add_theme_color_override("font_color", UIKit.GOLD if overcast else (UIKit.DANGER if fizzle else UIKit.DIM))
 	if _cast_tween != null and _cast_tween.is_valid():
 		_cast_tween.kill()
 	_cast_box.modulate.a = 0.0

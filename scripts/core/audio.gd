@@ -726,10 +726,15 @@ func _on_cast_fired(caster: Node, spell: Variant, stats: Dictionary, _origin: Ve
 	if _wizards.has(id):
 		var st: Dictionary = _wizards[id]
 		resolved = Time.get_ticks_msec() - int(st.get("ended_ms", -9999)) < 250
+	if bool(stats.get("fizzle", false)):
+		# A fizzle is a failed incantation: never give it the triumphant resolve.
+		resolved = false
 	if resolved:
 		play("chant_resolve", "SFX", -4.0)
 		play_voice("resolve", bool(caster.is_player), 0.0 if bool(caster.is_player) else -3.0)
 	play_cast(element)
+	if bool(stats.get("fizzle", false)):
+		play("chant_fail", "SFX", -5.0)
 	if spell_def == null:
 		return
 	var is_player := bool(caster.is_player)

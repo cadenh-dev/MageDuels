@@ -32,6 +32,7 @@ Shift your spellbook. Shift your feet. Shift the duel.
 | Health | 100 | No regeneration during a round |
 | Mana | 100 (wand-modified) | Regenerates ~12/s |
 | Overcast | Typed ×2.4 damage, assisted ×1.9, full mana | Requires a 1.6s typed hold (2.3s assisted) and a completed incantation; direct damage breaks it |
+| Fizzle | ×0.5 damage, full mana and cooldown | A failed typed incantation that reached at least 50% of the runes |
 
 ### Controls
 
@@ -56,7 +57,9 @@ While chanting you are **rooted**. Movement and quickcast are locked until the
 incantation completes or is cancelled. A typed chant needs 1.6s of hold time and
 is **interrupted by direct damage**, so it is a wager, not a discount. Typing is
 the stronger path (×2.4); the 2.3s assisted hold is the accessible ×1.9
-alternative. Every cast also announces its spell name in the HUD and speaks its
+alternative. A failed typed incantation still fires a **fizzle** at ×0.5 damage
+if at least half of the runes were typed (full mana and cooldown); below half it
+cancels. Every cast also announces its spell name in the HUD and speaks its
 rune words through the synthetic voice.
 
 ### Runes

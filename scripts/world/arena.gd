@@ -548,7 +548,7 @@ func _resolve_on(caster: Wizard, victim: Wizard, spell: SpellDef, s: Dictionary,
 		return
 	var damage := float(s.get("damage", 0.0))
 	if damage > 0.0:
-		victim.take_damage(damage, spell.element, from_pos, float(s.get("knockback", 0.0)))
+		victim.take_damage(damage, spell.element, from_pos, float(s.get("knockback", 0.0)), not bool(s.get("fizzle", false)))
 		impact(victim.global_position + Vector3.UP * 1.0, s.get("color", Color.WHITE), 0.7 if damage < 20.0 else 1.0)
 
 	# Element riders

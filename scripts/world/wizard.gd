@@ -21,6 +21,10 @@ const HIT_HEIGHT := 0.9
 const CHANT_MIN_TIME := 1.6
 const CHANT_ASSIST_TIME := 2.3
 const CHANT_PERFECT_END := 1.95
+## A failed incantation is not wasted if the caster got at least this far.
+## It becomes a fizzle: half power, full mana and cooldown.
+const PARTIAL_CAST_RATIO := 0.5
+const PARTIAL_CAST_MULT := 0.5
 
 var wizard_name := "Wizard"
 var is_player := false
@@ -51,6 +55,9 @@ var chant_text := ""
 var chant_typos := 0
 var chant_elapsed := 0.0
 var assisted_chant := false
+## Best correct-prefix length reached this chant, kept across typo resets so a
+## late slip still leaves the player a weak partial cast.
+var chant_best := 0
 
 var burn_time := 0.0
 var burn_total := 0.0
@@ -521,6 +528,7 @@ func begin_chant(slot: int, p_assisted: bool = false) -> bool:
 	chant_text = ""
 	chant_typos = 0
 	chant_elapsed = 0.0
+	chant_best = 0
 	selected_slot = slot
 	var spell: SpellDef = check["spell"]
 	if _chant_label != null:
@@ -543,6 +551,7 @@ func chant_key(character: String) -> void:
 	var next_char := target.substr(chant_text.length(), 1)
 	if character.to_upper() == next_char:
 		chant_text += next_char
+		chant_best = maxi(chant_best, chant_text.length())
 	else:
 		chant_typos += 1
 		if chant_text.length() > 0:
@@ -567,15 +576,47 @@ func chant_finish() -> void:
 	if chant_elapsed < CHANT_MIN_TIME:
 		cast_blocked.emit(self, "The runes are still forming…")
 		return
-	if chant_text != spell.incantation_compact():
+	var full := spell.incantation_compact()
+	if chant_text == full:
+		var check := can_cast(chant_slot, true, SpellDef.OVERCAST_MULT)
+		if not bool(check["ok"]):
+			cast_blocked.emit(self, str(check["reason"]))
+			cancel_chant()
+			return
+		_do_cast(chant_slot, true, check)
+		return
+
+	# A failed incantation still fires if the caster reached at least half of
+	# it. The fizzle is deliberately worse than a quickcast (×0.5 power) and
+	# still pays full mana and cooldown, so it is a consolation, not a combo.
+	var ratio := chant_accuracy()
+	if ratio < PARTIAL_CAST_RATIO:
+		cast_blocked.emit(self, "The incantation collapses — too few runes.")
 		cancel_chant()
 		return
-	var check := can_cast(chant_slot, true, SpellDef.OVERCAST_MULT)
-	if not bool(check["ok"]):
-		cast_blocked.emit(self, str(check["reason"]))
+	var partial := can_cast(chant_slot, false)
+	if not bool(partial["ok"]):
+		cast_blocked.emit(self, str(partial["reason"]))
 		cancel_chant()
 		return
-	_do_cast(chant_slot, true, check)
+	var stats: Dictionary = partial["stats"]
+	stats["damage"] = snappedf(float(stats["damage"]) * PARTIAL_CAST_MULT, 0.1)
+	stats["shield"] = snappedf(float(stats["shield"]) * PARTIAL_CAST_MULT, 0.1)
+	stats["duration"] = float(stats["duration"]) * PARTIAL_CAST_MULT
+	stats["knockback"] = float(stats["knockback"]) * PARTIAL_CAST_MULT
+	stats["fizzle"] = true
+	stats["fizzle_mult"] = PARTIAL_CAST_MULT
+	stats["partial_ratio"] = ratio
+	_do_cast(chant_slot, false, partial)
+
+
+## Best correct-prefix length / full incantation length, kept across typos.
+func chant_accuracy() -> float:
+	var spell := current_spell(chant_slot)
+	if spell == null:
+		return 0.0
+	var full := spell.incantation_compact()
+	return clampf(float(maxi(chant_text.length(), chant_best)) / float(maxi(1, full.length())), 0.0, 1.0)
 
 
 func chant_progress() -> float:
@@ -631,6 +672,7 @@ func cancel_chant() -> void:
 	chant_slot = -1
 	chant_text = ""
 	chant_elapsed = 0.0
+	chant_best = 0
 	_set_chant_fx(false)
 	chant_changed.emit(self, false)
 
@@ -659,6 +701,7 @@ func _do_cast(slot: int, overcast: bool, check: Dictionary, perfect: bool = fals
 	chant_slot = -1
 	chant_text = ""
 	chant_elapsed = 0.0
+	chant_best = 0
 	_set_chant_fx(false)
 	chant_changed.emit(self, false)
 	mana_changed.emit(self, mana, max_mana)

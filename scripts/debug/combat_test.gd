@@ -8,6 +8,7 @@ var p: Wizard
 var e: Wizard
 var failures: Array[String] = []
 var checks := 0
+var last_stats: Dictionary = {}
 
 
 func run() -> int:
@@ -161,6 +162,41 @@ func run() -> int:
 	_check("overcast deals damage", plain_damage > 0.0, "damage %.1f" % plain_damage)
 	_check("overcast is empowered", plain_damage > 14.0, "damage %.1f" % plain_damage)
 
+	# --- Partial incantation / fizzle -------------------------------------
+	e.hp = e.max_hp
+	e.burn_time = 0.0
+	e.burn_total = 0.0
+	p.mana = p.max_mana
+	p.cooldowns = [0.0, 0.0, 0.0, 0.0]
+	p.set_aim_world(e.global_position)
+	var fizzle_spell := p.current_spell(0)
+	var fizzle_text := fizzle_spell.incantation_compact()
+	var half := maxi(1, int(ceil(float(fizzle_text.length()) * Wizard.PARTIAL_CAST_RATIO)))
+	last_stats = {}
+	_check("partial chant starts", p.begin_chant(0))
+	for i in half:
+		p.chant_key(fizzle_text.substr(i, 1))
+	_check("partial typing reaches half", p.chant_accuracy() >= Wizard.PARTIAL_CAST_RATIO, "acc=%.2f" % p.chant_accuracy())
+	await _wait(Wizard.CHANT_MIN_TIME + 0.1)
+	var fizzle_hp := e.hp
+	p.chant_finish()
+	_check("partial incantation still casts", not p.chanting)
+	_check("partial cast is flagged fizzle", bool(last_stats.get("fizzle", false)))
+	await _wait(0.85)
+	_check("fizzle deals reduced damage", e.hp < fizzle_hp and fizzle_hp - e.hp < 10.0, "damage %.1f" % (fizzle_hp - e.hp))
+	_check("fizzle skips status riders", e.burn_time <= 0.0, "burn=%.2f" % e.burn_time)
+
+	p.mana = p.max_mana
+	p.cooldowns = [0.0, 0.0, 0.0, 0.0]
+	last_stats = {}
+	var low := maxi(0, half - 1)
+	_check("low chant starts", p.begin_chant(0))
+	for i in low:
+		p.chant_key(fizzle_text.substr(i, 1))
+	await _wait(Wizard.CHANT_MIN_TIME + 0.1)
+	p.chant_finish()
+	_check("below half cancels instead", not p.chanting and last_stats.is_empty(), "stats=%s" % str(last_stats))
+
 	# --- Chant interrupt --------------------------------------------------
 	p.mana = p.max_mana
 	p.cooldowns = [0.0, 0.0, 0.0, 0.0]
@@ -204,6 +240,7 @@ func _test_pages() -> Array:
 
 
 func _cast(caster: Wizard, spell: SpellDef, stats: Dictionary, origin: Vector3, direction: Vector3) -> void:
+	last_stats = stats
 	arena.spawn_spell(caster, spell, stats, origin, direction)
 
 

@@ -111,6 +111,7 @@ script was changed.
 | Each newly typed correct character (`wizard.chant_text.length()`) | Next baked ladder rung, both duelists |
 | Successful cast (`cast_fired` within 250 ms of a chant ending) | `resolve` stab (plus the existing `chant_resolve` bell) |
 | Every cast (`cast_fired`) | Spell-name callout: element word + form word + optional modifier word on a dedicated Voice player. The rival's copy is pitch-shifted down and skipped if the player just cast. |
+| Fizzled partial cast (`stats.fizzle`) | The cast SFX plus `chant_fail` at −5 dB; no resolve stab and no triumphant chord. |
 | Typo (`wizard.chant_typos` increases) | `fail` descending buzz |
 | `chant_interrupted(wizard)` | `cut` glottal choke |
 
