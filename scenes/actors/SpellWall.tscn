@@ -1,0 +1,34 @@
+[gd_scene load_steps=5 format=3]
+
+[ext_resource type="Script" path="res://scripts/world/spell_wall.gd" id="1_wall"]
+
+[sub_resource type="BoxShape3D" id="BoxShape_1"]
+size = Vector3(2.4, 2.6, 0.45)
+
+[sub_resource type="BoxMesh" id="BoxMesh_1"]
+size = Vector3(2.4, 2.6, 0.45)
+
+[sub_resource type="BoxMesh" id="BoxMesh_trim"]
+size = Vector3(0.12, 2.6, 0.53)
+
+[node name="SpellWall" type="StaticBody3D"]
+script = ExtResource("1_wall")
+
+[node name="CollisionShape3D" type="CollisionShape3D" parent="."]
+position = Vector3(0, 1.3, 0)
+shape = SubResource("BoxShape_1")
+
+[node name="Mesh" type="MeshInstance3D" parent="."]
+position = Vector3(0, 1.3, 0)
+mesh = SubResource("BoxMesh_1")
+cast_shadow = 0
+
+[node name="TrimLeft" type="MeshInstance3D" parent="."]
+position = Vector3(-1.2, 1.3, 0)
+mesh = SubResource("BoxMesh_trim")
+cast_shadow = 0
+
+[node name="TrimRight" type="MeshInstance3D" parent="."]
+position = Vector3(1.2, 1.3, 0)
+mesh = SubResource("BoxMesh_trim")
+cast_shadow = 0

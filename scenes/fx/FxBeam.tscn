@@ -1,0 +1,12 @@
+[gd_scene load_steps=2 format=3]
+
+[sub_resource type="CylinderMesh" id="CylinderMesh_beam"]
+top_radius = 0.09
+bottom_radius = 0.0405
+height = 1.0
+radial_segments = 8
+rings = 1
+
+[node name="FxBeam" type="MeshInstance3D"]
+mesh = SubResource("CylinderMesh_beam")
+cast_shadow = 0

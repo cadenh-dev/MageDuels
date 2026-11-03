@@ -1,0 +1,52 @@
+[gd_scene load_steps=5 format=3]
+
+[ext_resource type="Script" path="res://scripts/world/spell_projectile.gd" id="1_projectile"]
+
+[sub_resource type="SphereMesh" id="SphereMesh_core"]
+radius = 0.32
+height = 0.64
+radial_segments = 12
+rings = 6
+
+[sub_resource type="SphereMesh" id="SphereMesh_halo"]
+radius = 0.48
+height = 0.96
+radial_segments = 10
+rings = 5
+
+[sub_resource type="SphereMesh" id="SphereMesh_particle"]
+radius = 0.09
+height = 0.18
+radial_segments = 6
+rings = 3
+
+[node name="SpellProjectile" type="Area3D"]
+collision_layer = 0
+collision_mask = 0
+monitoring = false
+monitorable = false
+script = ExtResource("1_projectile")
+
+[node name="Core" type="MeshInstance3D" parent="."]
+mesh = SubResource("SphereMesh_core")
+cast_shadow = 0
+
+[node name="Halo" type="MeshInstance3D" parent="."]
+mesh = SubResource("SphereMesh_halo")
+cast_shadow = 0
+
+[node name="Trail" type="CPUParticles3D" parent="."]
+emitting = false
+amount = 22
+lifetime = 0.22
+local_coords = false
+direction = Vector3(0, 0, 0)
+spread = 180.0
+gravity = Vector3(0, 0, 0)
+initial_velocity_min = 0.0
+initial_velocity_max = 0.4
+scale_amount_min = 0.8
+scale_amount_max = 1.8
+color = Color(1, 1, 1, 1)
+mesh = SubResource("SphereMesh_particle")
+cast_shadow = 0

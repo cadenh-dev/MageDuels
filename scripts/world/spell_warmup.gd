@@ -5,6 +5,8 @@ extends Node
 ## viewport, behind the boot loading screen. This compiles the same depth,
 ## transparent, MSAA, light, and particle pipelines the first duel will use.
 
+const ActorScenes := preload("res://scripts/core/actors.gd")
+
 
 func run(parent: Node3D) -> void:
 	if DisplayServer.get_name() == "headless":
@@ -16,11 +18,11 @@ func run(parent: Node3D) -> void:
 
 	var kit := Game.wizard_kit("apprentice")
 	var pages := SpellData.apprentice_pages()
-	var p := Wizard.new()
+	var p := ActorScenes.wizard().instantiate() as Wizard
 	p.setup("WARMUP", kit, pages, true)
 	arena.add_wizard(p)
 	p.global_position = arena.spawn_position(0)
-	var e := Wizard.new()
+	var e := ActorScenes.wizard().instantiate() as Wizard
 	e.setup("WARMUP RIVAL", kit, pages, false)
 	arena.add_wizard(e)
 	e.global_position = arena.spawn_position(1)

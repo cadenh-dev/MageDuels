@@ -1,0 +1,11 @@
+[gd_scene load_steps=2 format=3]
+
+[sub_resource type="TorusMesh" id="TorusMesh_shock"]
+inner_radius = 0.86
+outer_radius = 1.0
+rings = 24
+ring_segments = 8
+
+[node name="FxShockwave" type="MeshInstance3D"]
+mesh = SubResource("TorusMesh_shock")
+cast_shadow = 0

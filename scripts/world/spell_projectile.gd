@@ -25,6 +25,8 @@ var stats: Dictionary = {}
 var _dead := false
 var _hit: Array[Wizard] = []
 var _spin := 0.0
+var _core: MeshInstance3D
+var _halo: MeshInstance3D
 var _trail: CPUParticles3D
 var _near_missed := false
 
@@ -58,60 +60,30 @@ func setup(p: Dictionary) -> void:
 	monitoring = false
 	monitorable = false
 
-	_build_visual()
+	_cache_scene()
+	_apply_visuals()
 
 
-func _build_visual() -> void:
-	var sphere := SphereMesh.new()
-	sphere.radius = radius
-	sphere.height = radius * 2.0
-	sphere.radial_segments = 12
-	sphere.rings = 6
+func _cache_scene() -> void:
+	_core = get_node_or_null("Core") as MeshInstance3D
+	_halo = get_node_or_null("Halo") as MeshInstance3D
+	_trail = get_node_or_null("Trail") as CPUParticles3D
 
-	var core := MeshInstance3D.new()
-	core.mesh = sphere
-	core.material_override = _core_material(color)
-	core.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_OFF
-	add_child(core)
 
-	var halo := MeshInstance3D.new()
-	var halo_mesh := SphereMesh.new()
-	halo_mesh.radius = radius * 1.5
-	halo_mesh.height = radius * 3.0
-	halo_mesh.radial_segments = 10
-	halo_mesh.rings = 5
-	halo.mesh = halo_mesh
-	halo.material_override = _halo_material(color)
-	halo.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_OFF
-	add_child(halo)
-
-	var trail := CPUParticles3D.new()
-	trail.amount = 22
-	trail.lifetime = 0.22
-	trail.local_coords = false
-	trail.emitting = false
-	trail.direction = Vector3.ZERO
-	trail.spread = 180.0
-	trail.gravity = Vector3.ZERO
-	trail.initial_velocity_min = 0.0
-	trail.initial_velocity_max = 0.4
-	trail.scale_amount_min = 0.8
-	trail.scale_amount_max = 1.8
-	trail.color = Color.WHITE
-
-	var particle_mesh := SphereMesh.new()
-	particle_mesh.radius = 0.09
-	particle_mesh.height = 0.18
-	particle_mesh.radial_segments = 6
-	particle_mesh.rings = 3
-	trail.mesh = particle_mesh
-	var ramp := Gradient.new()
-	ramp.set_color(0, Color(color.r, color.g, color.b, 0.7))
-	ramp.set_color(1, Color(color.r, color.g, color.b, 0.0))
-	trail.color_ramp = ramp
-	trail.material_override = _trail_material(color)
-	add_child(trail)
-	_trail = trail
+func _apply_visuals() -> void:
+	var scale_factor := radius / 0.32
+	if _core != null:
+		_core.scale = Vector3.ONE * scale_factor
+		_core.material_override = _core_material(color)
+	if _halo != null:
+		_halo.scale = Vector3.ONE * scale_factor
+		_halo.material_override = _halo_material(color)
+	if _trail != null:
+		var ramp := Gradient.new()
+		ramp.set_color(0, Color(color.r, color.g, color.b, 0.7))
+		ramp.set_color(1, Color(color.r, color.g, color.b, 0.0))
+		_trail.color_ramp = ramp
+		_trail.material_override = _trail_material(color)
 
 
 func _ready() -> void:

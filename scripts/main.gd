@@ -17,6 +17,7 @@ var is_paused := false
 
 const STALL_MS := 20000
 const CastTimingScript := preload("res://scripts/debug/cast_timing.gd")
+const ActorScenes := preload("res://scripts/core/actors.gd")
 var _last_action_ms := 0
 var _pad_aim := Vector2.RIGHT
 
@@ -257,12 +258,12 @@ func _build_duel() -> void:
 	world.add_child(arena)
 	arena.build(Game.arena_element)
 
-	player = Wizard.new()
+	player = ActorScenes.wizard().instantiate() as Wizard
 	player.setup("YOU", Game.loadout_kit(Game.player_loadout), player_pages_now, true)
 	arena.add_wizard(player)
 	player.global_position = arena.spawn_position(0)
 
-	enemy = Wizard.new()
+	enemy = ActorScenes.wizard().instantiate() as Wizard
 	enemy.setup("RIVAL", Game.loadout_kit(Game.enemy_loadout), enemy_pages_now, false)
 	arena.add_wizard(enemy)
 	enemy.global_position = arena.spawn_position(1)

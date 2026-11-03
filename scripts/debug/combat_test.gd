@@ -3,6 +3,8 @@ extends Node
 
 ## Headless checks for the spell system. Run with: godot --headless -- --test
 
+const ActorScenes := preload("res://scripts/core/actors.gd")
+
 var arena: Arena
 var p: Wizard
 var e: Wizard
@@ -22,12 +24,12 @@ func run() -> int:
 	add_child(arena)
 	arena.build("fire")
 
-	p = Wizard.new()
+	p = ActorScenes.wizard().instantiate() as Wizard
 	p.setup("P", Game.wizard_kit(Game.player_wand), _test_pages(), true)
 	arena.add_wizard(p)
 	p.global_position = Vector3(-6, 0, 0)
 
-	e = Wizard.new()
+	e = ActorScenes.wizard().instantiate() as Wizard
 	e.setup("E", Game.wizard_kit(Game.enemy_wand), _test_pages(), false)
 	arena.add_wizard(e)
 	e.global_position = Vector3(6, 0, 0)

@@ -19,35 +19,17 @@ func setup(p_color: Color, p_duration: float = 7.0, p_size: Vector3 = Vector3(2.
 
 	collision_layer = 1
 	collision_mask = 0
+	if not p_size.is_equal_approx(Vector3(2.4, 2.6, 0.45)):
+		scale = Vector3(p_size.x / 2.4, p_size.y / 2.6, p_size.z / 0.45)
 
-	var box := BoxShape3D.new()
-	box.size = p_size
-	var shape := CollisionShape3D.new()
-	shape.shape = box
-	shape.position = Vector3(0, p_size.y * 0.5, 0)
-	add_child(shape)
-
-	var mesh := BoxMesh.new()
-	mesh.size = p_size
-	var mi := MeshInstance3D.new()
-	mi.mesh = mesh
-	mi.position = Vector3(0, p_size.y * 0.5, 0)
-
+	var mesh_node := get_node_or_null("Mesh") as MeshInstance3D
 	_mat = _wall_material(color)
-	mi.material_override = _mat
-	mi.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_OFF
-	add_child(mi)
-
-	# Edge trim makes the barrier readable from the arena camera.
-	for x in [-1.0, 1.0]:
-		var trim := MeshInstance3D.new()
-		var trim_mesh := BoxMesh.new()
-		trim_mesh.size = Vector3(0.12, p_size.y, p_size.z + 0.08)
-		trim.mesh = trim_mesh
-		trim.material_override = Fx.glow_material(color, 4.0)
-		trim.position = Vector3(x * p_size.x * 0.5, p_size.y * 0.5, 0)
-		trim.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_OFF
-		add_child(trim)
+	if mesh_node != null:
+		mesh_node.material_override = _mat
+	for path in ["TrimLeft", "TrimRight"]:
+		var trim := get_node_or_null(path) as MeshInstance3D
+		if trim != null:
+			trim.material_override = Fx.glow_material(color, 4.0)
 
 
 func _process(delta: float) -> void:

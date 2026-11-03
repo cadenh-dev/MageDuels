@@ -103,17 +103,8 @@ func setup(p_name: String, p_kit: Dictionary, p_pages: Array, p_is_player: bool)
 	collision_mask = 1
 	motion_mode = CharacterBody3D.MOTION_MODE_FLOATING
 
-	var shape := CollisionShape3D.new()
-	var cyl := CylinderShape3D.new()
-	cyl.radius = 0.46
-	cyl.height = 2.3
-	shape.shape = cyl
-	shape.position = Vector3(0, 1.15, 0)
-	add_child(shape)
-
-	_build_model()
-	_build_bars()
-	_build_shield()
+	_cache_scene()
+	_apply_visuals()
 	if float(kit.get("start_shield", 0.0)) > 0.0:
 		add_shield(float(kit["start_shield"]), 60.0, wand.get("color", Color("8fe7ff")))
 
@@ -129,268 +120,83 @@ func _exit_tree() -> void:
 		Audio.unregister_wizard(self)
 
 
-func _build_model() -> void:
+func _cache_scene() -> void:
+	_model = get_node_or_null("Model") as Node3D
+	_staff_light = get_node_or_null("Model/Staff/Light") as OmniLight3D
+	_muzzle = get_node_or_null("Model/Staff/Muzzle") as Node3D
+	_crystal = get_node_or_null("Model/Staff/Crystal") as MeshInstance3D
+	_bar_fill = get_node_or_null("Bars/HealthFill") as MeshInstance3D
+	_mana_fill = get_node_or_null("Bars/ManaFill") as MeshInstance3D
+	_chant_ring = get_node_or_null("ChantRing") as MeshInstance3D
+	_chant_label = get_node_or_null("ChantLabel") as Label3D
+	_shield_mesh = get_node_or_null("Shield") as MeshInstance3D
+	_flash_meshes.clear()
+	for path in ["Model/Body", "Model/Head", "Model/Brim", "Model/Hat"]:
+		var mi := get_node_or_null(path) as MeshInstance3D
+		if mi != null:
+			_flash_meshes.append(mi)
+
+
+func _apply_visuals() -> void:
 	var robe: Color = wand.get("color", Color("a78bfa"))
-	var model := Node3D.new()
-	model.name = "Model"
-	add_child(model)
-	_model = model
+	var body := Fx.standard_material(robe.darkened(0.62))
+	body.roughness = 0.85
+	var head := Fx.standard_material(Color("e8c9a0"))
+	head.roughness = 0.9
+	_assign_material("Model/Body", body)
+	_assign_material("Model/Trim", Fx.glow_material(robe.lightened(0.15), 1.2))
+	_assign_material("Model/Head", head)
+	_assign_material("Model/Beard", Fx.standard_material(Color("efe9ff")))
+	_assign_material("Model/EyeL", Fx.glow_material(Color("bff6ff"), 3.0))
+	_assign_material("Model/EyeR", Fx.glow_material(Color("bff6ff"), 3.0))
+	_assign_material("Model/Brim", Fx.standard_material(robe.darkened(0.35)))
+	_assign_material("Model/Hat", Fx.standard_material(robe.darkened(0.25)))
+	_assign_material("Model/Staff/Shaft", Fx.standard_material(Color("4a3427")))
+	_assign_material("Model/Staff/Collar", Fx.glow_material(robe, 1.6))
+	_assign_material("Model/Staff/Crystal", Fx.glow_material(robe, 4.0))
 
-	# Robe
-	var body := MeshInstance3D.new()
-	var capsule := CapsuleMesh.new()
-	capsule.radius = 0.36
-	capsule.height = 1.25
-	capsule.radial_segments = 12
-	capsule.rings = 6
-	body.mesh = capsule
-	body.position = Vector3(0, 0.74, 0)
-	var robe_mat := Fx.standard_material(robe.darkened(0.62))
-	robe_mat.roughness = 0.85
-	body.material_override = robe_mat
-	model.add_child(body)
-	_flash_meshes.append(body)
+	var ring := Fx.glow_material(Color(robe.r, robe.g, robe.b, 0.7), 1.4)
+	ring.transparency = BaseMaterial3D.TRANSPARENCY_ALPHA
+	_assign_material("Ring", ring)
+	_assign_material("ChantRing", Fx.glow_material(Color("ffd166"), 3.0))
 
-	# Robe trim
-	var trim := MeshInstance3D.new()
-	var torus := TorusMesh.new()
-	torus.inner_radius = 0.31
-	torus.outer_radius = 0.4
-	torus.rings = 16
-	torus.ring_segments = 6
-	trim.mesh = torus
-	trim.position = Vector3(0, 0.36, 0)
-	trim.material_override = Fx.glow_material(robe.lightened(0.15), 1.2)
-	model.add_child(trim)
+	if _staff_light != null:
+		_staff_light.light_color = robe
+		_staff_light.light_energy = 0.9
+		_staff_light.omni_range = 2.6
 
-	# Head
-	var head := MeshInstance3D.new()
-	var head_mesh := SphereMesh.new()
-	head_mesh.radius = 0.22
-	head_mesh.height = 0.44
-	head_mesh.radial_segments = 14
-	head_mesh.rings = 8
-	head.mesh = head_mesh
-	head.position = Vector3(0, 1.55, 0)
-	head.material_override = Fx.standard_material(Color("e8c9a0"))
-	head.material_override.roughness = 0.9
-	model.add_child(head)
-	_flash_meshes.append(head)
+	var shield := Fx.glow_material(Color(_shield_color.r, _shield_color.g, _shield_color.b, 0.22), 2.0)
+	shield.transparency = BaseMaterial3D.TRANSPARENCY_ALPHA
+	shield.blend_mode = BaseMaterial3D.BLEND_MODE_ADD
+	shield.cull_mode = BaseMaterial3D.CULL_DISABLED
+	if _shield_mesh != null:
+		_shield_mesh.material_override = shield
 
-	# Beard
-	var beard := MeshInstance3D.new()
-	var beard_mesh := CylinderMesh.new()
-	beard_mesh.top_radius = 0.16
-	beard_mesh.bottom_radius = 0.02
-	beard_mesh.height = 0.34
-	beard_mesh.radial_segments = 8
-	beard.mesh = beard_mesh
-	beard.position = Vector3(0, 1.38, -0.12)
-	beard.rotation_degrees = Vector3(12, 0, 0)
-	beard.material_override = Fx.standard_material(Color("efe9ff"))
-	model.add_child(beard)
+	var back := Fx.standard_material(Color(0.03, 0.02, 0.07, 0.8), 0.0, true)
+	back.transparency = BaseMaterial3D.TRANSPARENCY_ALPHA
+	back.billboard_mode = BaseMaterial3D.BILLBOARD_ENABLED
+	back.no_depth_test = true
+	back.shading_mode = BaseMaterial3D.SHADING_MODE_UNSHADED
+	_assign_material("Bars/Backing", back)
 
-	# Eyes
-	for x in [-0.075, 0.075]:
-		var eye := MeshInstance3D.new()
-		var eye_mesh := SphereMesh.new()
-		eye_mesh.radius = 0.032
-		eye_mesh.height = 0.064
-		eye_mesh.radial_segments = 6
-		eye_mesh.rings = 4
-		eye.mesh = eye_mesh
-		eye.position = Vector3(x, 1.59, -0.195)
-		eye.material_override = Fx.glow_material(Color("bff6ff"), 3.0)
-		model.add_child(eye)
+	var health := Fx.glow_material(Color("66f2a5") if is_player else Color("ff5d73"), 2.4)
+	health.transparency = BaseMaterial3D.TRANSPARENCY_ALPHA
+	health.billboard_mode = BaseMaterial3D.BILLBOARD_ENABLED
+	health.no_depth_test = true
+	_assign_material("Bars/HealthFill", health)
 
-	# Hat brim
-	var brim := MeshInstance3D.new()
-	var brim_mesh := CylinderMesh.new()
-	brim_mesh.top_radius = 0.46
-	brim_mesh.bottom_radius = 0.46
-	brim_mesh.height = 0.055
-	brim_mesh.radial_segments = 18
-	brim.mesh = brim_mesh
-	brim.position = Vector3(0, 1.72, 0)
-	brim.material_override = Fx.standard_material(robe.darkened(0.35))
-	model.add_child(brim)
-	_flash_meshes.append(brim)
-
-	# Hat cone
-	var hat := MeshInstance3D.new()
-	var hat_mesh := CylinderMesh.new()
-	hat_mesh.top_radius = 0.0
-	hat_mesh.bottom_radius = 0.33
-	hat_mesh.height = 0.82
-	hat_mesh.radial_segments = 16
-	hat.mesh = hat_mesh
-	hat.position = Vector3(0, 2.1, 0)
-	hat.rotation_degrees = Vector3(-6, 0, 3)
-	hat.material_override = Fx.standard_material(robe.darkened(0.25))
-	model.add_child(hat)
-	_flash_meshes.append(hat)
-
-	# Staff
-	var staff := Node3D.new()
-	staff.name = "Staff"
-	staff.position = Vector3(0.46, 0.0, -0.12)
-	staff.rotation_degrees = Vector3(0, 0, -9)
-	model.add_child(staff)
-
-	var shaft := MeshInstance3D.new()
-	var shaft_mesh := CylinderMesh.new()
-	shaft_mesh.top_radius = 0.035
-	shaft_mesh.bottom_radius = 0.045
-	shaft_mesh.height = 1.65
-	shaft_mesh.radial_segments = 8
-	shaft.mesh = shaft_mesh
-	shaft.position = Vector3(0, 0.82, 0)
-	shaft.material_override = Fx.standard_material(Color("4a3427"))
-	staff.add_child(shaft)
-
-	var collar := MeshInstance3D.new()
-	var collar_mesh := TorusMesh.new()
-	collar_mesh.inner_radius = 0.07
-	collar_mesh.outer_radius = 0.11
-	collar_mesh.rings = 10
-	collar_mesh.ring_segments = 5
-	collar.mesh = collar_mesh
-	collar.position = Vector3(0, 1.5, 0)
-	collar.rotation_degrees = Vector3(90, 0, 0)
-	collar.material_override = Fx.glow_material(robe, 1.6)
-	staff.add_child(collar)
-
-	var crystal := MeshInstance3D.new()
-	var crystal_mesh := SphereMesh.new()
-	crystal_mesh.radius = 0.11
-	crystal_mesh.height = 0.22
-	crystal_mesh.radial_segments = 8
-	crystal_mesh.rings = 5
-	crystal.mesh = crystal_mesh
-	crystal.position = Vector3(0, 1.68, 0)
-	crystal.material_override = Fx.glow_material(robe, 4.0)
-	staff.add_child(crystal)
-	_crystal = crystal
-
-	var light := OmniLight3D.new()
-	light.light_color = robe
-	light.light_energy = 0.9
-	light.omni_range = 2.6
-	light.position = Vector3(0, 1.68, 0)
-	staff.add_child(light)
-	_staff_light = light
-
-	_muzzle = Node3D.new()
-	_muzzle.name = "Muzzle"
-	_muzzle.position = Vector3(0, 1.72, 0)
-	staff.add_child(_muzzle)
-
-	# Ground ring
-	var ring := MeshInstance3D.new()
-	var ring_mesh := TorusMesh.new()
-	ring_mesh.inner_radius = 0.55
-	ring_mesh.outer_radius = 0.68
-	ring_mesh.rings = 22
-	ring_mesh.ring_segments = 6
-	ring.mesh = ring_mesh
-	ring.position = Vector3(0, 0.04, 0)
-	ring.material_override = Fx.glow_material(Color(robe.r, robe.g, robe.b, 0.7), 1.4)
-	ring.material_override.transparency = BaseMaterial3D.TRANSPARENCY_ALPHA
-	add_child(ring)
-
-	# Chant telegraph: floating word + expanding ring.
-	_chant_ring = MeshInstance3D.new()
-	var chant_ring_mesh := TorusMesh.new()
-	chant_ring_mesh.inner_radius = 0.92
-	chant_ring_mesh.outer_radius = 1.06
-	chant_ring_mesh.rings = 32
-	chant_ring_mesh.ring_segments = 6
-	_chant_ring.mesh = chant_ring_mesh
-	_chant_ring.material_override = Fx.glow_material(Color("ffd166"), 3.0)
-	_chant_ring.position = Vector3(0, 0.05, 0)
-	_chant_ring.visible = false
-	_chant_ring.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_OFF
-	add_child(_chant_ring)
-
-	_chant_label = Label3D.new()
-	_chant_label.text = "CHANTING"
-	_chant_label.font_size = 48
-	_chant_label.outline_size = 14
-	_chant_label.modulate = Color("ffd166")
-	_chant_label.outline_modulate = Color(0.03, 0.02, 0.06, 0.95)
-	_chant_label.billboard = BaseMaterial3D.BILLBOARD_ENABLED
-	_chant_label.no_depth_test = true
-	_chant_label.pixel_size = 0.005
-	_chant_label.position = Vector3(0, 3.25, 0)
-	_chant_label.visible = false
-	add_child(_chant_label)
-
-
-func _build_shield() -> void:
-	_shield_mesh = MeshInstance3D.new()
-	var sphere := SphereMesh.new()
-	sphere.radius = 1.05
-	sphere.height = 2.1
-	sphere.radial_segments = 16
-	sphere.rings = 8
-	_shield_mesh.mesh = sphere
-	var mat := Fx.glow_material(Color(_shield_color.r, _shield_color.g, _shield_color.b, 0.22), 2.0)
-	mat.transparency = BaseMaterial3D.TRANSPARENCY_ALPHA
-	mat.blend_mode = BaseMaterial3D.BLEND_MODE_ADD
-	mat.cull_mode = BaseMaterial3D.CULL_DISABLED
-	_shield_mesh.material_override = mat
-	_shield_mesh.position = Vector3(0, 1.0, 0)
-	_shield_mesh.visible = false
-	_shield_mesh.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_OFF
-	add_child(_shield_mesh)
-
-
-func _build_bars() -> void:
-	var root := Node3D.new()
-	root.name = "Bars"
-	root.position = Vector3(0, 2.75, 0)
-	add_child(root)
-
-	var backing := MeshInstance3D.new()
-	var back_mesh := QuadMesh.new()
-	back_mesh.size = Vector2(_bar_width + 0.06, 0.2)
-	backing.mesh = back_mesh
-	var back_mat := Fx.standard_material(Color(0.03, 0.02, 0.07, 0.8), 0.0, true)
-	back_mat.transparency = BaseMaterial3D.TRANSPARENCY_ALPHA
-	back_mat.billboard_mode = BaseMaterial3D.BILLBOARD_ENABLED
-	back_mat.no_depth_test = true
-	back_mat.shading_mode = BaseMaterial3D.SHADING_MODE_UNSHADED
-	backing.material_override = back_mat
-	backing.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_OFF
-	root.add_child(backing)
-
-	_bar_fill = MeshInstance3D.new()
-	var fill_mesh := QuadMesh.new()
-	fill_mesh.size = Vector2(_bar_width, 0.1)
-	_bar_fill.mesh = fill_mesh
-	var fill_mat := Fx.glow_material(Color("66f2a5") if is_player else Color("ff5d73"), 2.4)
-	fill_mat.transparency = BaseMaterial3D.TRANSPARENCY_ALPHA
-	fill_mat.billboard_mode = BaseMaterial3D.BILLBOARD_ENABLED
-	fill_mat.no_depth_test = true
-	_bar_fill.material_override = fill_mat
-	_bar_fill.position = Vector3(0, 0.035, 0)
-	_bar_fill.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_OFF
-	root.add_child(_bar_fill)
-
-	_mana_fill = MeshInstance3D.new()
-	var mana_mesh := QuadMesh.new()
-	mana_mesh.size = Vector2(_bar_width, 0.06)
-	_mana_fill.mesh = mana_mesh
-	var mana_mat := Fx.glow_material(Color("5bd1ff"), 2.0)
-	mana_mat.transparency = BaseMaterial3D.TRANSPARENCY_ALPHA
-	mana_mat.billboard_mode = BaseMaterial3D.BILLBOARD_ENABLED
-	mana_mat.no_depth_test = true
-	_mana_fill.material_override = mana_mat
-	_mana_fill.position = Vector3(0, -0.06, 0)
-	_mana_fill.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_OFF
-	root.add_child(_mana_fill)
-
+	var mana := Fx.glow_material(Color("5bd1ff"), 2.0)
+	mana.transparency = BaseMaterial3D.TRANSPARENCY_ALPHA
+	mana.billboard_mode = BaseMaterial3D.BILLBOARD_ENABLED
+	mana.no_depth_test = true
+	_assign_material("Bars/ManaFill", mana)
 	_update_bars()
+
+
+func _assign_material(path: String, mat: Material) -> void:
+	var mi := get_node_or_null(path) as MeshInstance3D
+	if mi != null:
+		mi.material_override = mat
 
 
 func _physics_process(delta: float) -> void:

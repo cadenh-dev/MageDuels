@@ -1,7 +1,10 @@
 class_name Fx
 extends RefCounted
 
-## Small procedural VFX helpers. No external assets required.
+## Small procedural VFX helpers. Node trees live in scenes; this script only
+## supplies per-instance transforms, colors, and lifetimes.
+
+const ActorScenes := preload("res://scripts/core/actors.gd")
 
 static var _burst_materials: Dictionary = {}
 static var _beam_materials: Dictionary = {}
@@ -30,38 +33,22 @@ static func glow_material(color: Color, strength: float = 2.5) -> StandardMateri
 static func burst(parent: Node, pos: Vector3, color: Color, amount: int = 18, speed: float = 6.0, size: float = 0.09, lifetime: float = 0.55) -> void:
 	if parent == null or not parent.is_inside_tree():
 		return
-	var p := CPUParticles3D.new()
-	p.one_shot = true
-	p.emitting = false
+	var p := ActorScenes.burst().instantiate() as CPUParticles3D
 	p.amount = amount
 	p.lifetime = lifetime
-	p.explosiveness = 0.95
-	p.direction = Vector3.UP
-	p.spread = 180.0
 	p.initial_velocity_min = speed * 0.35
 	p.initial_velocity_max = speed
-	p.gravity = Vector3(0, -7.0, 0)
-	p.damping_min = 1.0
-	p.damping_max = 3.0
-	p.scale_amount_min = 0.8
-	p.scale_amount_max = 1.9
-	p.color = Color.WHITE
-	p.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_OFF
-
-	var sphere := SphereMesh.new()
-	sphere.radius = maxf(0.03, size * 0.7)
-	sphere.height = sphere.radius * 2.0
-	sphere.radial_segments = 6
-	sphere.rings = 3
-	p.mesh = sphere
-
+	var base := p.mesh as SphereMesh
+	if base != null:
+		var particle_mesh := base.duplicate() as SphereMesh
+		particle_mesh.radius = maxf(0.03, size * 0.7)
+		particle_mesh.height = particle_mesh.radius * 2.0
+		p.mesh = particle_mesh
 	var ramp := Gradient.new()
 	ramp.set_color(0, Color(color.r, color.g, color.b, 1.0))
 	ramp.set_color(1, Color(color.r, color.g, color.b, 0.0))
 	p.color_ramp = ramp
-
-	var mat := _burst_material(color)
-	p.material_override = mat
+	p.material_override = _burst_material(color)
 
 	parent.add_child(p)
 	p.global_position = pos
@@ -104,17 +91,15 @@ static func beam(parent: Node, from: Vector3, to: Vector3, color: Color, width: 
 	if length < 0.01:
 		return
 
-	var mesh := CylinderMesh.new()
-	mesh.top_radius = width
-	mesh.bottom_radius = width * 0.45
-	mesh.height = length
-	mesh.radial_segments = 8
-	mesh.rings = 1
-
-	var mi := MeshInstance3D.new()
-	mi.mesh = mesh
+	var mi := ActorScenes.beam().instantiate() as MeshInstance3D
+	var base := mi.mesh as CylinderMesh
+	if base != null:
+		var mesh := base.duplicate() as CylinderMesh
+		mesh.top_radius = width
+		mesh.bottom_radius = width * 0.45
+		mesh.height = length
+		mi.mesh = mesh
 	mi.material_override = _beam_material(color)
-	mi.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_OFF
 	parent.add_child(mi)
 
 	var mid := (from + to) * 0.5
@@ -137,17 +122,9 @@ static func beam(parent: Node, from: Vector3, to: Vector3, color: Color, width: 
 static func shockwave(parent: Node, pos: Vector3, color: Color, radius: float, duration: float = 0.45) -> void:
 	if parent == null or not parent.is_inside_tree():
 		return
-	var ring := TorusMesh.new()
-	ring.inner_radius = 0.86
-	ring.outer_radius = 1.0
-	ring.rings = 24
-	ring.ring_segments = 8
-
-	var mi := MeshInstance3D.new()
-	mi.mesh = ring
+	var mi := ActorScenes.shockwave().instantiate() as MeshInstance3D
 	var mat := _shock_material(color)
 	mi.material_override = mat
-	mi.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_OFF
 	parent.add_child(mi)
 	mi.global_position = Vector3(pos.x, 0.12, pos.z)
 	mi.scale = Vector3(0.4, 0.4, 0.4)
@@ -162,15 +139,9 @@ static func shockwave(parent: Node, pos: Vector3, color: Color, radius: float, d
 static func damage_number(parent: Node, pos: Vector3, amount: float, color: Color) -> void:
 	if parent == null or not parent.is_inside_tree():
 		return
-	var label := Label3D.new()
+	var label := ActorScenes.damage_number().instantiate() as Label3D
 	label.text = str(int(round(amount)))
-	label.font_size = 52
-	label.outline_size = 14
 	label.modulate = color
-	label.outline_modulate = Color(0.02, 0.01, 0.05, 0.9)
-	label.billboard = BaseMaterial3D.BILLBOARD_ENABLED
-	label.no_depth_test = true
-	label.pixel_size = 0.005
 	parent.add_child(label)
 	label.global_position = pos + Vector3(randf_range(-0.3, 0.3), 2.0, 0)
 

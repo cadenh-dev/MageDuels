@@ -3,6 +3,8 @@ extends Node3D
 
 ## The 2.5D duelling stage. Owns the camera, lighting, and spell resolution.
 
+const ActorScenes := preload("res://scripts/core/actors.gd")
+
 var wizards: Array[Wizard] = []
 var projectiles: Node3D
 var effects: Node3D
@@ -458,7 +460,7 @@ func _spawn_projectiles(caster: Wizard, spell: SpellDef, s: Dictionary, origin: 
 		if count > 1 and spread > 0.0:
 			var t := float(i) / float(count - 1) - 0.5
 			dir = direction.rotated(Vector3.UP, deg_to_rad(spread * t))
-		var proj := SpellProjectile.new()
+		var proj := ActorScenes.projectile().instantiate() as SpellProjectile
 		proj.setup({
 			"arena": self,
 			"caster": caster,
@@ -519,7 +521,7 @@ func _spawn_nova(caster: Wizard, spell: SpellDef, s: Dictionary) -> void:
 
 
 func _spawn_wall(caster: Wizard, spell: SpellDef, s: Dictionary, direction: Vector3) -> void:
-	var wall := SpellWall.new()
+	var wall := ActorScenes.wall().instantiate() as SpellWall
 	var color: Color = s.get("color", Color.WHITE)
 	wall.setup(color, float(s.get("duration", 7.0)))
 	walls.add_child(wall)
