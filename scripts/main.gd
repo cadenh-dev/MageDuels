@@ -16,6 +16,7 @@ var round_running := false
 var is_paused := false
 
 const STALL_MS := 20000
+const CastTimingScript := preload("res://scripts/debug/cast_timing.gd")
 var _last_action_ms := 0
 var _pad_aim := Vector2.RIGHT
 
@@ -70,6 +71,12 @@ func _ready() -> void:
 		var input_code: int = await input_test.run(self)
 		get_tree().quit(input_code)
 		return
+	if "--cast-timing" in args or "--cast-timing-all" in args:
+		var timing := CastTimingScript.new()
+		add_child(timing)
+		var timing_code: int = await timing.run(self, "--cast-timing-all" in args)
+		get_tree().quit(timing_code)
+		return
 	if "--test" in args:
 		var tester := CombatTest.new()
 		add_child(tester)
@@ -90,7 +97,8 @@ func _boot() -> void:
 	screens.add_child(loading)
 	# Let the loading screen reach the screen before the blocking audio bake.
 	await get_tree().process_frame
-	await RenderingServer.frame_post_draw
+	if DisplayServer.get_name() != "headless":
+		await RenderingServer.frame_post_draw
 
 	Audio.prepare()
 

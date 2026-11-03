@@ -7,7 +7,7 @@ extends Node
 
 
 func run(parent: Node3D) -> void:
-	if OS.has_feature("headless"):
+	if DisplayServer.get_name() == "headless":
 		return
 
 	var arena := Arena.new()
