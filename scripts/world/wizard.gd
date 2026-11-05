@@ -154,8 +154,7 @@ func _build_model() -> void:
 	capsule.rings = 6
 	body.mesh = capsule
 	body.position = Vector3(0, 0.74, 0)
-	var robe_mat := Fx.standard_material(robe.darkened(0.62))
-	robe_mat.roughness = 0.85
+	var robe_mat := Fx.flash_material(robe.darkened(0.62), 0.85)
 	body.material_override = robe_mat
 	model.add_child(body)
 	_flash_meshes.append(body)
@@ -181,8 +180,7 @@ func _build_model() -> void:
 	head_mesh.rings = 8
 	head.mesh = head_mesh
 	head.position = Vector3(0, 1.55, 0)
-	head.material_override = Fx.standard_material(Color("e8c9a0"))
-	head.material_override.roughness = 0.9
+	head.material_override = Fx.flash_material(Color("e8c9a0"), 0.9)
 	model.add_child(head)
 	_flash_meshes.append(head)
 
@@ -221,7 +219,7 @@ func _build_model() -> void:
 	brim_mesh.radial_segments = 18
 	brim.mesh = brim_mesh
 	brim.position = Vector3(0, 1.72, 0)
-	brim.material_override = Fx.standard_material(robe.darkened(0.35))
+	brim.material_override = Fx.flash_material(robe.darkened(0.35))
 	model.add_child(brim)
 	_flash_meshes.append(brim)
 
@@ -235,7 +233,7 @@ func _build_model() -> void:
 	hat.mesh = hat_mesh
 	hat.position = Vector3(0, 2.1, 0)
 	hat.rotation_degrees = Vector3(-6, 0, 3)
-	hat.material_override = Fx.standard_material(robe.darkened(0.25))
+	hat.material_override = Fx.flash_material(robe.darkened(0.25))
 	model.add_child(hat)
 	_flash_meshes.append(hat)
 
@@ -872,8 +870,8 @@ func _flash() -> void:
 	for mi in _flash_meshes:
 		if mi.material_override is StandardMaterial3D:
 			var mat: StandardMaterial3D = mi.material_override
-			mat.emission_enabled = true
-			mat.emission = Color.WHITE
+			# Only the multiplier changes: the emission shader variant is always
+			# compiled in, so a hit never triggers a program rebuild.
 			mat.emission_energy_multiplier = 2.0
 	if _flash_tween != null and _flash_tween.is_valid():
 		_flash_tween.kill()
@@ -886,7 +884,6 @@ func _clear_flash() -> void:
 	for mi in _flash_meshes:
 		if mi.material_override is StandardMaterial3D:
 			var mat: StandardMaterial3D = mi.material_override
-			mat.emission_enabled = false
 			mat.emission_energy_multiplier = 0.0
 
 

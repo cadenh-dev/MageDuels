@@ -4,6 +4,7 @@ extends StaticBody3D
 ## Temporary elemental barrier. Blocks projectiles and beams.
 
 static var _materials: Dictionary = {}
+static var _trim_materials: Dictionary = {}
 
 var duration: float = 7.0
 var color: Color = Color.WHITE
@@ -44,7 +45,7 @@ func setup(p_color: Color, p_duration: float = 7.0, p_size: Vector3 = Vector3(2.
 		var trim_mesh := BoxMesh.new()
 		trim_mesh.size = Vector3(0.12, p_size.y, p_size.z + 0.08)
 		trim.mesh = trim_mesh
-		trim.material_override = Fx.glow_material(color, 4.0)
+		trim.material_override = _trim_material(color)
 		trim.position = Vector3(x * p_size.x * 0.5, p_size.y * 0.5, 0)
 		trim.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_OFF
 		add_child(trim)
@@ -60,6 +61,14 @@ func _process(delta: float) -> void:
 		_fading = true
 		var tween := create_tween()
 		tween.tween_property(_mat, "albedo_color:a", 0.0, 1.4)
+
+
+## Trim never fades, so one material per color can be shared by every wall.
+static func _trim_material(c: Color) -> StandardMaterial3D:
+	var key := c.to_html()
+	if not _trim_materials.has(key):
+		_trim_materials[key] = Fx.glow_material(c, 4.0)
+	return _trim_materials[key]
 
 
 ## Keep one template per color so the transparent/cull-disabled shader program

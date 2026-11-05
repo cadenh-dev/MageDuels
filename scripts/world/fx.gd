@@ -27,6 +27,20 @@ static func glow_material(color: Color, strength: float = 2.5) -> StandardMateri
 	return mat
 
 
+## A solid material whose emission is always compiled in, so a hit flash can
+## animate only the energy multiplier. Flipping `emission_enabled` at runtime
+## changes the material's shader key and makes the OpenGL driver rebuild the
+## program, which cost ~2s per hit on the Radeon 840M.
+static func flash_material(color: Color, roughness: float = 0.55) -> StandardMaterial3D:
+	var mat := StandardMaterial3D.new()
+	mat.albedo_color = color
+	mat.roughness = roughness
+	mat.emission_enabled = true
+	mat.emission = Color.WHITE
+	mat.emission_energy_multiplier = 0.0
+	return mat
+
+
 static func burst(parent: Node, pos: Vector3, color: Color, amount: int = 18, speed: float = 6.0, size: float = 0.09, lifetime: float = 0.55) -> void:
 	if parent == null or not parent.is_inside_tree():
 		return
@@ -79,13 +93,17 @@ static func _burst_material(color: Color) -> StandardMaterial3D:
 	return _burst_materials[key]
 
 
-## Templates stay alive; each effect gets a duplicate so its own alpha tween
-## does not fade every other beam/shockwave of the same color.
+## The beam is shorter lived than the gap between casts, so a per-cast material
+## duplicate is freed before the next one and the GL driver drops its program:
+## every beam then pays a fresh shader compile. Keep one material per color
+## alive and reset its alpha instead. Beams of the same color are 0.085s long
+## and casts are 0.32s apart, so sharing the fade window is not visible.
 static func _beam_material(color: Color) -> StandardMaterial3D:
 	var key := color.to_html()
 	if not _beam_materials.has(key):
 		_beam_materials[key] = glow_material(color, 4.0)
-	var mat: StandardMaterial3D = _beam_materials[key].duplicate()
+	var mat: StandardMaterial3D = _beam_materials[key]
+	mat.albedo_color = color
 	return mat
 
 
