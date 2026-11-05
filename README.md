@@ -81,6 +81,7 @@ godot --headless --path . -- --ai        # rival telegraph, completion, interrup
 godot --headless --path . -- --input     # unicode typing, assist/perfect, controller maps
 godot --headless --path . -- --balance   # all wand x rune stat combinations
 godot --headless --path . -- --audio-selftest
+godot --path . -- --fps                  # rendered FPS benchmark (720p/1080p/vsync)
 godot --headless --path . res://scenes/NetTest.tscn  # 2-client sync spike
 ```
 

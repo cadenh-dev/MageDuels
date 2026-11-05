@@ -139,3 +139,116 @@ stable, so those passes compile during the boot screen and stay warm.
 
 The `--profile` mode boots, builds the arena, and casts all eight test slots;
 it prints per-cast max frame time and the arena build time.
+
+## Rendered FPS benchmark
+
+`--fps` builds the shipped arena, keeps both wizards alive, warms the spellbook,
+and drives continuous combat at 720p, 1080p, and 720p with vsync. Each row
+reports average / 1% low / 0.1% low FPS, p95/p99/worst frame time, draw calls,
+and every frame over 100ms. It is silent by default; add `--fps-audio` to hear
+it.
+
+```powershell
+godot --path . -- --fps
+godot --path . -- --fps --fps-only=720p --fps-seconds=20
+godot --path . -- --fps --fps-cold          # no warm-up, first-use hitches
+```
+
+Run it on AC power, or at a healthy battery charge. At 9% on the Balanced plan
+we measured ~600ms stalls every few seconds that looked like engine hitches;
+the same build at 65% on battery ran stall-free. Windows throttles hard near
+empty.
+
+## Beam material regression
+
+`Fx.beam` allocated a duplicate material per cast. A beam only lives 0.085s, so
+the duplicate was freed before the next cast and the GL Compatibility driver
+dropped its program: every beam paid a fresh shader compile. On the Radeon 840M
+at 25% battery / Balanced that measured **~580ms per beam cast**.
+
+`_beam_material` now returns one persistent material per color and resets its
+alpha on each cast. The beam-only benchmark went from **16fps with a 580ms
+stall every cast** to **434fps with a 7ms worst frame**. The trade-off is that
+two same-color beams overlapping inside the 0.085s window share one fade; at the
+0.32s cast interval that is not visible.
+
+## Hit flash regression
+
+`Wizard._flash()` set `emission_enabled = true` on the four body materials, then
+`_clear_flash()` set it back to `false` 70ms later. In Godot 4 that flag is part
+of the material's shader key, so each flip rebuilt the GL program.
+
+Measured on the Radeon 840M with `--fps-hits`, which lands one real hit on the
+player every 0.32s and does nothing else:
+
+| hit path | avg | worst frame |
+|---|---|---|
+| full `take_damage` | 2.0 fps | 2312 ms |
+| damage number only | 400.8 fps | 5 ms |
+| **flash only** | **3.8 fps** | **2082 ms** |
+| impact burst only | 414.6 fps | 8 ms |
+| HUD damage flash only | 430.2 fps | 7 ms |
+
+The material now comes from `Fx.flash_material()`, which compiles emission in
+from the start with `emission_energy_multiplier = 0`. A hit only changes the
+multiplier — a uniform, not a shader variant. Full hit path went from 2.0 to
+**392 fps / 18ms worst frame** on battery, and to **533 fps / 6ms worst frame**
+on AC with current drivers.
+
+## Reference numbers (AC, Radeon 840M)
+
+| pass | avg | 1% low | 0.1% low | worst |
+|---|---|---|---|---|
+| 720p, 25s sustained combat (AC) | 542.8 | 266.3 | 139.1 | 8.7 ms |
+| 720p, 20s sustained combat (battery 65%) | 422.2 | 184.2 | 104.5 | 11.7 ms |
+| 1080p, 12s (AC) | 255.0 | 162.3 | 99.7 | 11.6 ms |
+| 720p + vsync (AC) | 59.9 | 54.4 | 52.9 | 18.9 ms |
+
+The 1080p pass renders at 2880x1620 on this laptop because of Windows DPI
+scaling, so treat it as a ~3K number.
+
+## Is the boot warm-up still needed?
+
+`--profile` reports `boot_ms`, and `--no-warmup` skips `SpellWarmup` for
+comparison. Measured by deleting `user://shader_cache` between runs:
+
+| shader cache | warm-up | boot | worst first cast |
+|---|---|---|---|
+| warm | yes | 1578 ms | 18.8 ms |
+| warm | no | 1384 ms | 19.5 ms |
+| cold | no | 1386 ms | **102.4 ms** (Stone Ward) |
+| cold | yes | 2368 ms | 30.1 ms |
+
+On a warm cache the warm-up costs ~0.2s and buys nothing measurable. On a cold
+cache (new driver, first install, cleared cache) it costs ~1s and removes a
+one-time 40-100ms hitch on wall, nova, and beam.
+
+### Why Stone Ward's first cast is the worst
+
+The first Stone Ward is a one-time GPU pipeline compile for the wall's
+transparent, emissive box; it is not cast logic. Three things pin it down:
+
+- The cast itself costs ~4ms of script. The rest of the frame is the draw.
+- Making the wall mesh invisible at spawn drops the same first-cast frame from
+  ~130ms to the 19ms baseline, with nothing else changed.
+- On a cold cache the wall is **112ms**; on a warm cache it is **17.5ms**, and
+  every later wall in the same run stays at ~18ms.
+
+The wall is the only large transparent body created at cast time. Its body and
+trim materials are new instances every cast, so the first draw is the first time
+the driver builds that pipeline. The boot warm-up already spawns and renders
+every element x form, walls included, in the real viewport, which is why the
+first real Stone Ward is cheap after it.
+
+A partial pre-render is not enough: rendering one real `SpellWall` at boot in a
+SubViewport, or in the main viewport before the arena environment exists, only
+brings the cold cost down to ~45-55ms. The remaining cost needs the real arena
+viewport, which is what `SpellWarmup` uses.
+
+The `LoadingScreen` is still required either way: `Audio.prepare()` bakes the
+procedural bank synchronously and takes 1.2-2s. Only the shader half is
+optional. It is kept because the Web export is a shipping target — browsers
+have no persistent shader cache, so the first cast there is the worst case the
+warm-up exists for.
+
+

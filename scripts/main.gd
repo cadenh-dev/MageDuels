@@ -17,6 +17,7 @@ var is_paused := false
 
 const STALL_MS := 20000
 const CastTimingScript := preload("res://scripts/debug/cast_timing.gd")
+const FpsTestScript := preload("res://scripts/debug/fps_test.gd")
 var _last_action_ms := 0
 var _pad_aim := Vector2.RIGHT
 
@@ -77,6 +78,12 @@ func _ready() -> void:
 		var timing_code: int = await timing.run(self, "--cast-timing-all" in args)
 		get_tree().quit(timing_code)
 		return
+	if "--fps" in args:
+		var fps_test := FpsTestScript.new()
+		add_child(fps_test)
+		var fps_code: int = await fps_test.run(self)
+		get_tree().quit(fps_code)
+		return
 	if "--test" in args:
 		var tester := CombatTest.new()
 		add_child(tester)
@@ -92,7 +99,7 @@ func _ready() -> void:
 	show_menu()
 
 
-func _boot() -> void:
+func _boot(skip_warmup: bool = false) -> void:
 	var loading := LoadingScreen.new()
 	screens.add_child(loading)
 	# Let the loading screen reach the screen before the blocking audio bake.
@@ -102,17 +109,20 @@ func _boot() -> void:
 
 	Audio.prepare()
 
-	var warm := SpellWarmup.new()
-	add_child(warm)
-	await warm.run(world)
-	warm.queue_free()
+	if not skip_warmup:
+		var warm := SpellWarmup.new()
+		add_child(warm)
+		await warm.run(world)
+		warm.queue_free()
 
 	loading.queue_free()
 	await get_tree().process_frame
 
 
 func _profile() -> void:
-	await _boot()
+	var boot_t0 := Time.get_ticks_usec()
+	await _boot("--no-warmup" in OS.get_cmdline_user_args())
+	print("PROFILE boot_ms=%.1f" % (float(Time.get_ticks_usec() - boot_t0) / 1000.0))
 	Game.start_arena()
 	var t0 := Time.get_ticks_usec()
 	_build_duel()
