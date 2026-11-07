@@ -69,6 +69,7 @@ func _ready() -> void:
 	)
 	box.add_child(cancel)
 	NetSession.prepare_online()
+	_code.placeholder_text = "Room code" if NetSession.transport is GDSyncTransport else "Room code / IP:port"
 	NetSession.state_changed.connect(_update_status)
 	_update_status()
 	_refresh()
