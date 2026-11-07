@@ -608,6 +608,16 @@ func _unhandled_input(event: InputEvent) -> void:
 		_chant_wheel_open = false
 		command("prepare", {"slot": _chant_wheel_slot, "chant": true, "controller": true})
 		return
+	if _chant_wheel_open and event is InputEventJoypadMotion:
+		var motion := event as InputEventJoypadMotion
+		if motion.axis == JOY_AXIS_RIGHT_X or motion.axis == JOY_AXIS_RIGHT_Y:
+			var x := Input.get_joy_axis(motion.device, JOY_AXIS_RIGHT_X)
+			var y := Input.get_joy_axis(motion.device, JOY_AXIS_RIGHT_Y)
+			if Vector2(x, y).length() > 0.45:
+				_chant_wheel_slot = posmod((roundi(atan2(y, x) / (PI * 0.5)) + 1) % 4, 4)
+				if hud != null:
+					hud.set_spell_wheel(true, _chant_wheel_slot)
+		return
 	if event is InputEventJoypadButton and event.is_pressed() and w.chanting:
 		var button := (event as InputEventJoypadButton).button_index
 		if button == JOY_BUTTON_BACK:
