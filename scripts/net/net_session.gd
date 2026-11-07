@@ -18,7 +18,8 @@ var cast_mode := "chant"
 var rtt_ms := 0
 var status := ""
 var protocol_version := PROTOCOL # Exposed for protocol compatibility tests.
-var _last_receive := 0
+var _silence_seconds := 0.0
+var _waiting_for_resume := false
 var _last_ping := 0
 var _ping_stamp := -1
 var _peer_present := false
@@ -65,7 +66,7 @@ func join(code: String, player_name: String = "") -> void:
 		prepare_online()
 	local_name = (str(_game.player_name) if player_name.is_empty() else player_name).strip_edges().left(24)
 	room_code = code
-	_last_receive = Time.get_ticks_msec()
+	_silence_seconds = 0.0
 	_set_state(State.JOINING, "Connecting")
 	transport.join(code)
 
@@ -78,7 +79,7 @@ func _connected() -> void:
 
 func _peer_joined() -> void:
 	_peer_present = true
-	_last_receive = Time.get_ticks_msec()
+	_silence_seconds = 0.0
 	if not is_host():
 		send_reliable({"type": "hello", "v": protocol_version, "name": local_name})
 
@@ -94,13 +95,12 @@ func _receive(msg: Dictionary) -> void:
 		if int(msg.get("v", -1)) != protocol_version:
 			send_reliable({"type": "reject", "reason": "Protocol version mismatch. Use the same game build."})
 			# Let ENet flush the reliable rejection before closing.
-			_set_state(State.DISCONNECTED, "Protocol version mismatch. Use the same game build.")
 			await get_tree().create_timer(0.25).timeout
-			if state == State.DISCONNECTED:
-				_disconnect(status)
+			if state == State.HOSTING_WAITING:
+				_disconnect("Protocol version mismatch. Use the same game build.")
 			return
 		remote_name = str(msg.get("name", "Wizard")).strip_edges().left(24)
-		_last_receive = Time.get_ticks_msec()
+		_silence_seconds = 0.0
 		send_reliable({"type": "welcome", "v": protocol_version, "name": local_name, "mode": cast_mode, "code": room_code})
 		_set_state(State.IN_LOBBY, "Opponent connected")
 		lobby_ready.emit()
@@ -117,7 +117,11 @@ func _receive(msg: Dictionary) -> void:
 		lobby_ready.emit()
 	if state not in [State.IN_LOBBY, State.IN_MATCH]:
 		return
-	_last_receive = Time.get_ticks_msec()
+	_silence_seconds = 0.0
+	if _waiting_for_resume:
+		_waiting_for_resume = false
+		status = "Connected"
+		state_changed.emit()
 	match kind:
 		"ping": send_reliable({"type": "pong", "stamp": msg.get("stamp", 0)})
 		"pong":
@@ -139,10 +143,22 @@ func send_unreliable(msg: Dictionary) -> void:
 	if transport != null:
 		transport.send_unreliable(msg)
 
-func _process(_delta: float) -> void:
+func _process(delta: float) -> void:
 	var now := Time.get_ticks_msec()
 	if state == State.JOINING or (state == State.HOSTING_WAITING and _peer_present) or state in [State.IN_LOBBY, State.IN_MATCH]:
-		if now - _last_receive > TIMEOUT_MS:
+		# Browsers can stop the main loop while a tab is hidden. Do not convert
+		# the resulting one-frame delta into an immediate timeout.
+		if delta <= 1.0:
+			_silence_seconds += maxf(0.0, delta)
+		if state in [State.IN_LOBBY, State.IN_MATCH]:
+			if _silence_seconds >= 10.0 and not _waiting_for_resume:
+				_waiting_for_resume = true
+				status = "Opponent's tab is inactive / waiting…"
+				state_changed.emit()
+			if _silence_seconds >= 20.0:
+				_disconnect("Connection timed out. Please reconnect.")
+				return
+		elif _silence_seconds >= float(TIMEOUT_MS) / 1000.0:
 			_disconnect("Connection timed out. Please reconnect.")
 			return
 	if state in [State.IN_LOBBY, State.IN_MATCH] and now - _last_ping > 1000:
@@ -156,6 +172,8 @@ func leave() -> void:
 		transport.set_match_state("waiting")
 		transport.leave()
 	_peer_present = false
+	_silence_seconds = 0.0
+	_waiting_for_resume = false
 	room_code = ""
 	if not _saved_cast_mode.is_empty():
 		_game.cast_mode = _saved_cast_mode
