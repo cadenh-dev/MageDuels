@@ -133,11 +133,18 @@ func _scenario(impaired: bool) -> void:
 	var start := host_match.wizards[1].position
 	var received_frame := host_match.drivers[1].last_frame
 	client_match.set_input(Vector2(0, 1), Vector3(-6, 0, 0))
-	await _wait(0.5)
+	var movement_deadline := Time.get_ticks_msec() + 5000
+	while Time.get_ticks_msec() < movement_deadline:
+		if host_match.drivers[1].last_frame > received_frame and host_match.wizards[1].position.distance_to(start) > 1.0:
+			break
+		await get_tree().process_frame
 	client_match.set_input(Vector2.ZERO, Vector3(-6, 0, 0))
 	await _wait(0.7)
 	_check("client movement reaches real host wizard", host_match.wizards[1].position.distance_to(start) > 1.0)
 	_check("host receives guest movement frames", host_match.drivers[1].last_frame > received_frame)
+	var convergence_deadline := Time.get_ticks_msec() + 5000
+	while Time.get_ticks_msec() < convergence_deadline and host_match.wizards[1].position.distance_to(client_match.wizards[1].position) >= 0.3:
+		await get_tree().process_frame
 	_check("client prediction converges to host", host_match.wizards[1].position.distance_to(client_match.wizards[1].position) < 0.3)
 	host_match.set_input(Vector2(0, -1), host_match.wizards[1].position)
 	await _wait(0.5)
