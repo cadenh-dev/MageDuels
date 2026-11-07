@@ -580,9 +580,10 @@ func _update_bars() -> void:
 	_player_mana.max_value = player.max_mana
 	_player_mana.value = player.mana
 	_player_hp_label.text = "%d / %d" % [ceili(player.hp), ceili(player.max_hp)]
-	_player_shield_label.visible = player.shield_hp > 0.0
-	if player.shield_hp > 0.0:
-		_player_shield_label.text = "SHIELD  %d" % ceili(player.shield_hp)
+	var player_shield := player.shield_label()
+	_player_shield_label.visible = player_shield != ""
+	if player_shield != "":
+		_player_shield_label.text = player_shield
 
 	var ratio := player.hp / player.max_hp
 	if _hp_style != null:
@@ -599,9 +600,10 @@ func _update_bars() -> void:
 		_enemy_mana.max_value = enemy.max_mana
 		_enemy_mana.value = enemy.mana
 		_enemy_hp_label.text = "%d / %d" % [ceili(enemy.hp), ceili(enemy.max_hp)]
-		_enemy_shield_label.visible = enemy.shield_hp > 0.0
-		if enemy.shield_hp > 0.0:
-			_enemy_shield_label.text = "SHIELD  %d" % ceili(enemy.shield_hp)
+		var enemy_shield := enemy.shield_label()
+		_enemy_shield_label.visible = enemy_shield != ""
+		if enemy_shield != "":
+			_enemy_shield_label.text = enemy_shield
 		if _hp_style_enemy != null:
 			_hp_style_enemy.bg_color = UIKit.DANGER
 
@@ -662,7 +664,7 @@ func _refresh_chant() -> void:
 	var primed := player != null and player.primed_slot >= 0
 	_chant_panel.visible = chanting or primed
 	if primed and not chanting:
-		var primed_spell := player.current_spell(player.primed_slot)
+		var primed_spell := player.get_primed_spell()
 		if primed_spell == null:
 			return
 		_chant_title.text = "PRIMED  Â·  %s  Ã—%.1f" % [primed_spell.display_name(), SpellDef.OVERCAST_MULT]

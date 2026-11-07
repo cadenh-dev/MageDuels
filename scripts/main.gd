@@ -676,6 +676,10 @@ func _on_death(wiz: Wizard) -> void:
 	if player != null and is_instance_valid(player):
 		player.input_enabled = false
 		player.cancel_chant()
+		player.discard_primed()
+	if enemy != null and is_instance_valid(enemy):
+		enemy.cancel_chant()
+		enemy.discard_primed()
 	if ai != null and is_instance_valid(ai):
 		ai.stop()
 

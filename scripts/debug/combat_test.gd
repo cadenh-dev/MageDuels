@@ -60,6 +60,9 @@ func run() -> int:
 	_check("burn ticks damage", e.hp < burn_before, "hp %.1f -> %.1f" % [burn_before, e.hp])
 	e.burn_time = 0.0
 	e.burn_total = 0.0
+	# Ember Dart leaves a fire patch under the rival; clear it so later
+	# checks measure only their own spell.
+	_clear_zones()
 	e.hp = e.max_hp
 
 	# --- Beam -------------------------------------------------------------
@@ -165,6 +168,7 @@ func run() -> int:
 	_check("overcast is empowered", plain_damage > 14.0, "damage %.1f" % plain_damage)
 
 	# --- Partial incantation / fizzle -------------------------------------
+	_clear_zones()
 	e.hp = e.max_hp
 	e.burn_time = 0.0
 	e.burn_total = 0.0
@@ -242,6 +246,11 @@ func _test_pages() -> Array:
 		SpellDef.new("frost", "wall"),
 	]
 	return [row_a, row_b]
+
+
+func _clear_zones() -> void:
+	for z in arena.zones.get_children():
+		z.free()
 
 
 func _cast(caster: Wizard, spell: SpellDef, stats: Dictionary, origin: Vector3, direction: Vector3) -> void:

@@ -46,6 +46,7 @@ var _correction := Vector3.ZERO
 var _snapshots: Array = []
 var _entities: Dictionary = {}
 var _known_entities: Dictionary = {}
+var _static_entities: Dictionary = {}
 var _beam_seq := 0
 var _closed := false
 var _queued_unleash: Dictionary = {}
@@ -214,8 +215,8 @@ func _sample_frame(delta: float) -> void:
 	else:
 		var w := wizards[1]
 		var displacement := Vector3.ZERO
-		if phase == "duel" and w.input_enabled and not w.chanting and w.stun_time <= 0.0 and w.alive:
-			displacement = Vector3(_local_move.x, 0.0, _local_move.y) * w.move_speed * (1.0 - w.slow_amount if w.slow_time > 0.0 else 1.0) * delta
+		if phase == "duel" and w.input_enabled and not w.chanting and not w.is_rooted_by_status() and w.alive:
+			displacement = Vector3(_local_move.x, 0.0, _local_move.y) * w.move_speed * w.move_speed_mult() * delta
 		_displacements[_frame_seq % HISTORY] = displacement
 		w.velocity = displacement / delta
 		w.move_and_collide(displacement)
@@ -347,8 +348,16 @@ func _receive(msg: Dictionary) -> void:
 		"spawn": _spawn_entity(msg["entity"])
 		"despawn":
 			if _entities.has(msg["id"]):
-				_entities[msg["id"]].queue_free()
+				var gone: Variant = _entities[msg["id"]]
+				if is_instance_valid(gone):
+					gone.queue_free()
 				_entities.erase(msg["id"])
+				_static_entities.erase(msg["id"])
+		"whp":
+			var target: Variant = _entities.get(msg["id"])
+			if is_instance_valid(target) and target is SpellWall:
+				target.hp = float(msg["h"]) / 10.0
+				target.hp_changed.emit(target, target.hp)
 		"cast":
 			received_casts += 1
 			last_cast = msg
@@ -375,6 +384,7 @@ func _receive(msg: Dictionary) -> void:
 			for w in wizards:
 				w.input_enabled = false
 				w.cancel_chant()
+				w.discard_primed()
 			if hud != null:
 				hud.online_scores = [scores[1], scores[0]]
 		"draft":
@@ -431,6 +441,7 @@ func _death(w: Wizard) -> void:
 	for wizard in wizards:
 		wizard.input_enabled = false
 		wizard.cancel_chant()
+		wizard.discard_primed()
 	if hud != null:
 		hud.online_scores = [scores[0], scores[1]]
 		hud.announce("ROUND WON" if loser != local_index else "ROUND LOST", "", UIKit.GOLD, 1.0)
@@ -467,25 +478,43 @@ func _pick(index: int, id: String) -> void:
 			_publish_draft()
 		return
 
+## Moving projectiles ride every snapshot. Wards and zones are static: one
+## reliable spawn, HP changes as ``whp`` events, one reliable despawn.
 func _collect_entities() -> Array:
 	var result: Array = []
 	var live: Dictionary = {}
-	for container in [arena.projectiles, arena.walls]:
+	for i in arena.projectiles.get_child_count():
+		var node := arena.projectiles.get_child(i) as Node3D
+		if node.is_queued_for_deletion():
+			continue
+		var data := MatchState.entity(node)
+		result.append(data)
+		live[data["id"]] = true
+		if not _known_entities.has(data["id"]):
+			_known_entities[data["id"]] = true
+			_broadcast({"type": "spawn", "entity": data})
+	for container in [arena.walls, arena.zones]:
 		for i in container.get_child_count():
 			var node := container.get_child(i) as Node3D
-			if node.is_queued_for_deletion():
+			if node.is_queued_for_deletion() or (node is SpellWall and node.broken):
 				continue
-			var data := MatchState.entity(node)
-			result.append(data)
-			live[data["id"]] = true
-			if not _known_entities.has(data["id"]):
-				_known_entities[data["id"]] = true
-				_broadcast({"type": "spawn", "entity": data})
+			var id := node.get_instance_id()
+			live[id] = true
+			if not _known_entities.has(id):
+				_known_entities[id] = true
+				if node is SpellWall:
+					node.hp_changed.connect(_wall_hp)
+				_broadcast({"type": "spawn", "entity": MatchState.static_entity(node, wizards)})
 	for id in _known_entities.keys():
 		if not live.has(id):
 			_known_entities.erase(id)
 			_broadcast({"type": "despawn", "id": id})
 	return result
+
+func _wall_hp(wall: SpellWall, hp: float) -> void:
+	if wall.broken:
+		return
+	_broadcast({"type": "whp", "id": wall.get_instance_id(), "h": roundi(hp * 10.0)})
 
 func _send_snapshot() -> void:
 	session.send_unreliable({"type": "snapshot", "epoch": epoch, "tick": server_tick,
@@ -531,9 +560,10 @@ func _snapshot(msg: Dictionary) -> void:
 		live[data["id"]] = true
 		_spawn_entity(data)
 	for id in _entities.keys():
-		if not live.has(id):
-			var node: Node = _entities[id]
-			node.queue_free()
+		if not live.has(id) and not _static_entities.has(id):
+			var node: Variant = _entities[id]
+			if is_instance_valid(node):
+				node.queue_free()
 			_entities.erase(id)
 
 func _spawn_entity(data: Dictionary) -> void:
@@ -546,14 +576,14 @@ func _spawn_entity(data: Dictionary) -> void:
 		node = p
 		arena.projectiles.add_child(node)
 		p.set_physics_process(false)
+		node.global_position = data["pos"]
+		node.rotation = data["rot"]
 	else:
-		var wall := SpellWall.new()
-		wall.setup(data["color"], float(data["duration"]))
-		node = wall
-		arena.walls.add_child(node)
-		wall.set_process(false)
-	node.global_position = data["pos"]
-	node.rotation = data["rot"]
+		# Presentation only: no damage ticks, no HP logic. Solid wards still
+		# sit on the wall layer so predicted movement collides like the host.
+		node = MatchState.build_static(data, wizards)
+		(arena.walls if data["kind"] == "wall" else arena.zones).add_child(node)
+		_static_entities[data["id"]] = true
 	_entities[data["id"]] = node
 
 func _present(delta: float) -> void:
@@ -747,6 +777,7 @@ func _clear_round() -> void:
 	arena = null
 	_entities.clear()
 	_known_entities.clear()
+	_static_entities.clear()
 	_snapshots.clear()
 
 func leave() -> void:

@@ -22,6 +22,20 @@ var radius: float = 0.32
 var lifetime: float = 5.0
 var stats: Dictionary = {}
 
+## Rolls along the ground (Boulder).
+var low := false
+## Crossed a Flame Sheet: the hit also burns.
+var ignited := false
+var reflected := false
+## Singularity payload growth.
+var absorbed := 0
+## Wards already resolved for this projectile (instance ids).
+var walls_done: Dictionary = {}
+
+var _cell: Dictionary = {}
+var _timer := 0.0
+var _travel := 0.0
+var _trail_from := Vector3.INF
 var _dead := false
 var _hit: Array[Wizard] = []
 var _spin := 0.0
@@ -51,7 +65,12 @@ func setup(p: Dictionary) -> void:
 	spell = p.get("spell")
 	radius = float(p.get("radius", 0.32))
 	stats = p.get("stats", {})
-	lifetime = float(p.get("lifetime", 5.0))
+	lifetime = float(p.get("lifetime", stats.get("lifetime", 5.0)))
+	if spell != null:
+		_cell = spell.cell()
+	low = bool(_cell.get("low", false))
+	if p.has("cell"):
+		_cell = p["cell"]
 
 	collision_layer = 0
 	collision_mask = 0
@@ -151,19 +170,40 @@ func _physics_process(delta: float) -> void:
 		return
 	lifetime -= delta
 	if lifetime <= 0.0:
-		_dissipate()
+		_end(global_position, "expire")
+		return
+	if arena == null or not is_instance_valid(arena):
 		return
 
 	if homing and is_instance_valid(target) and target.is_alive():
-		var desired := (target.global_position + Vector3.UP * 0.9 - global_position).normalized()
+		var desired := (target.global_position + Vector3.UP * _aim_height() - global_position)
+		if low:
+			desired.y = 0.0
+		desired = desired.normalized()
 		var turn := clampf(homing_strength * delta, 0.0, 1.0)
 		direction = direction.slerp(desired, turn).normalized()
 
+	_cell_tick(delta)
+	if _dead:
+		return
+	if arena.projectile_hazards(self):
+		return
+
 	var from := global_position
 	var to := from + direction * speed * delta
+	var result: Dictionary = arena.projectile_walls(self, from, to)
+	if _dead:
+		return
+	if bool(result.get("stop", false)):
+		_end(result.get("point", from), "wall")
+		return
+	if bool(result.get("redirect", false)):
+		global_position = result.get("point", from)
+		return
+
 	var space := get_world_3d().direct_space_state
 	var query := PhysicsRayQueryParameters3D.create(from, to)
-	query.collision_mask = 1 | 2
+	query.collision_mask = 2
 	var exclude: Array[RID] = []
 	if caster != null and is_instance_valid(caster):
 		exclude.append(caster.get_rid())
@@ -178,19 +218,20 @@ func _physics_process(delta: float) -> void:
 		var point: Vector3 = hit["position"]
 		if collider is Wizard and collider != caster:
 			var wiz := collider as Wizard
+			if _cell.has("collapse_radius"):
+				_end(point, "hit")
+				return
 			arena.resolve_hit(self, wiz)
 			_hit.append(wiz)
 			if pierce > 0:
 				pierce -= 1
 				Fx.burst(arena.effects, point, color, 8, 3.0, 0.06, 0.3)
 			else:
-				_impact(point)
+				_end(point, "hit", wiz)
 				return
-		else:
-			_impact(point)
-			return
 
 	global_position = to
+	_travel += speed * delta
 	_spin += delta * 9.0
 	rotate_y(_spin * 0.15)
 
@@ -198,24 +239,64 @@ func _physics_process(delta: float) -> void:
 		var d := global_position.distance_to(target.global_position + Vector3.UP * 1.0)
 		if d < 1.55:
 			_near_missed = true
-			if arena != null and is_instance_valid(arena):
-				arena.near_miss.emit(target, global_position)
+			arena.near_miss.emit(target, global_position)
 
 
-func _impact(at: Vector3) -> void:
+func _aim_height() -> float:
+	return 0.45 if low else 0.9
+
+
+## Per-cell behaviour while flying (host only: clients never run physics here).
+func _cell_tick(delta: float) -> void:
+	if _cell.has("zap_interval") and spell != null and spell.form == "orb":
+		_timer += delta
+		if _timer >= float(_cell["zap_interval"]):
+			_timer = 0.0
+			arena.orb_zap(self)
+	if _cell.has("leech_interval"):
+		_timer += delta
+		if _timer >= float(_cell["leech_interval"]):
+			_timer = 0.0
+			arena.orb_leech(self)
+	if _cell.has("pull_radius"):
+		arena.orb_pull(self, delta)
+		arena.orb_absorb(self)
+	if _cell.has("trail_step"):
+		var flat := Vector3(global_position.x, 0.0, global_position.z)
+		if _trail_from == Vector3.INF:
+			_trail_from = flat
+		elif flat.distance_to(_trail_from) >= float(_cell["trail_step"]):
+			arena.spawn_trail(self, _trail_from, flat)
+			_trail_from = flat
+
+
+## Ownership flip for Mirror Ward, Repulse: damage, drain and chain credit
+## now belong to ``new_owner``.
+func redirect(new_owner: Wizard, new_dir: Vector3, new_target: Wizard) -> void:
+	caster = new_owner
+	target = new_target
+	direction = new_dir.normalized()
+	_hit.clear()
+	_near_missed = false
+	reflected = true
+
+
+func _end(at: Vector3, reason: String, victim: Wizard = null) -> void:
 	if _dead:
 		return
 	_dead = true
 	if arena != null and is_instance_valid(arena):
-		Fx.burst(arena.effects, at, color, 20, 7.0, 0.1, 0.5)
-		arena.impact(at, color, 0.55)
+		if reason in ["hit", "wall", "expire"]:
+			arena.projectile_end(self, at, reason, victim)
+		if reason == "expire":
+			Fx.burst(arena.effects, at, color, 6, 2.0, 0.06, 0.3)
+		else:
+			Fx.burst(arena.effects, at, color, 20, 7.0, 0.1, 0.5)
+			if reason in ["hit", "wall"]:
+				arena.impact(at, color, 0.55)
 	queue_free()
 
 
-func _dissipate() -> void:
-	if _dead:
-		return
-	_dead = true
-	if arena != null and is_instance_valid(arena):
-		Fx.burst(arena.effects, global_position, color, 6, 2.0, 0.06, 0.3)
-	queue_free()
+## Destroyed without a payload (melted, consumed, absorbed).
+func destroy(at: Vector3) -> void:
+	_end(at, "destroyed")

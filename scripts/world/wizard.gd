@@ -66,8 +66,23 @@ var controller_word_index := 0
 ## late slip still leaves the player a weak partial cast.
 var chant_best := 0
 var primed_slot := -1
+## Page the primed spell came from. Page swap is allowed while primed, so the
+## primed spell must never be re-read through ``current_spell(primed_slot)``.
+var primed_page := -1
 var primed_remaining := 0.0
+var primed_spell: SpellDef
 var _primed_check: Dictionary = {}
+
+const FREEZE_TIME := 0.6
+const FREEZE_IMMUNITY := 3.0
+const CHILL_SLOW := 0.4
+const CHILL_TIME := 2.0
+const JOLT_TIME := 0.25
+const STAGGER_TIME := 0.35
+const BURN_TOTAL := 6.0
+const MANA_BURN := 12.0
+## Wizards are on layer 2; solid wards (Stone Wall, Ice Wall) on layer 4.
+const WALL_LAYER := 4
 
 var burn_time := 0.0
 var burn_total := 0.0
@@ -75,9 +90,20 @@ var burn_tick := 0.0
 var slow_time := 0.0
 var slow_amount := 0.0
 var stun_time := 0.0
+## Frost chill marker: a second chill while this runs freezes.
+var chill_time := 0.0
+var freeze_time := 0.0
+var freeze_immune := 0.0
 var shield_hp := 0.0
 var shield_max := 0.0
 var shield_time := 0.0
+## Typed aegis: "" plain absorb (Barrier boon), or the aegis element. Fire is
+## an aura, arcane pays damage from mana, void swallows projectile hits, and
+## frost/storm/earth absorb with their own side effects.
+var shield_element := ""
+var shield_swallows := 0
+var shield_stats: Dictionary = {}
+var _arc_cooldown := 0.0
 var _shield_color := Color("8fe7ff")
 var _shield_mesh: MeshInstance3D
 
@@ -118,7 +144,7 @@ func setup(p_name: String, p_kit: Dictionary, p_pages: Array, p_is_player: bool)
 	cast_time_mult = clampf(float(p_kit.get("cast_time_mult", 1.0)), 0.35, 1.5)
 
 	collision_layer = 2
-	collision_mask = 1
+	collision_mask = 1 | WALL_LAYER
 	motion_mode = CharacterBody3D.MOTION_MODE_FLOATING
 
 	var shape := CollisionShape3D.new()
@@ -430,13 +456,12 @@ func _physics_process(delta: float) -> void:
 	elif (not is_player or external_input) and not chanting:
 		move = _ai_move.limit_length(1.0)
 
-	var speed := move_speed
-	if slow_time > 0.0:
-		speed *= (1.0 - slow_amount)
-	if chanting or stun_time > 0.0:
+	var speed := move_speed * move_speed_mult()
+	if chanting or is_rooted_by_status():
 		move = Vector3.ZERO
 
-	velocity = move * speed + _knock
+	velocity = move * speed + _knock + _drift
+	_drift = Vector3.ZERO
 	_knock = _knock.move_toward(Vector3.ZERO, 22.0 * delta)
 	move_and_slide()
 
@@ -459,6 +484,12 @@ func _physics_process(delta: float) -> void:
 # ---- AI hook -------------------------------------------------------------
 
 var _ai_move := Vector3.ZERO
+## Continuous external pull (Singularity) consumed by the next physics step.
+var _drift := Vector3.ZERO
+
+
+func add_drift(v: Vector3) -> void:
+	_drift += v
 
 
 func set_ai_move(dir: Vector3) -> void:
@@ -649,12 +680,7 @@ func chant_finish() -> void:
 		cancel_chant()
 		return
 	var stats: Dictionary = partial["stats"]
-	stats["damage"] = snappedf(float(stats["damage"]) * PARTIAL_CAST_MULT, 0.1)
-	stats["shield"] = snappedf(float(stats["shield"]) * PARTIAL_CAST_MULT, 0.1)
-	stats["duration"] = float(stats["duration"]) * PARTIAL_CAST_MULT
-	stats["knockback"] = float(stats["knockback"]) * PARTIAL_CAST_MULT
-	stats["fizzle"] = true
-	stats["fizzle_mult"] = PARTIAL_CAST_MULT
+	SpellDef.apply_fizzle(stats)
 	stats["partial_ratio"] = ratio
 	_do_cast(chant_slot, false, partial)
 
@@ -667,6 +693,8 @@ func _prime_chant() -> void:
 		return
 	_primed_check = check
 	primed_slot = chant_slot
+	primed_page = page
+	primed_spell = check["spell"]
 	primed_remaining = PRIMED_LIMIT
 	_set_primed_tint(check["spell"], true)
 	mana = maxf(0.0, mana - float(check["stats"]["mana"]))
@@ -683,29 +711,48 @@ func _prime_chant() -> void:
 
 
 func release_primed() -> bool:
-	if primed_slot < 0:
+	if primed_slot < 0 or not alive or _primed_check.is_empty():
 		return false
 	var slot := primed_slot
-	var spell := current_spell(slot)
+	var spell := primed_spell
 	var check := _primed_check
-	primed_slot = -1
-	primed_remaining = 0.0
-	_primed_check = {}
+	# Soft-lock reads the primed spell, so aim before clearing the primed state.
+	var dir := get_aim_direction()
+	_clear_primed()
 	_set_chant_fx(false)
 	_set_primed_tint(spell, false)
 	# Mana was paid when the spell primed.
 	check["stats"]["mana"] = 0.0
-	_do_cast(slot, true, check)
+	_do_cast(slot, true, check, false, dir)
 	return true
+
+
+## The spell that is loaded right now, independent of the current page.
+## Clients do not hold ``_primed_check``; they resolve the replicated page/slot.
+func get_primed_spell() -> SpellDef:
+	if primed_slot < 0:
+		return null
+	if primed_spell != null:
+		return primed_spell
+	if primed_page < 0 or primed_page >= pages.size():
+		return null
+	var row: Array = pages[primed_page]
+	return row[primed_slot] if primed_slot < row.size() else null
+
+
+func _clear_primed() -> void:
+	primed_slot = -1
+	primed_page = -1
+	primed_remaining = 0.0
+	primed_spell = null
+	_primed_check = {}
 
 
 func discard_primed() -> void:
 	if primed_slot < 0:
 		return
-	var spell := current_spell(primed_slot)
-	primed_slot = -1
-	primed_remaining = 0.0
-	_primed_check = {}
+	var spell := get_primed_spell()
+	_clear_primed()
 	_set_chant_fx(false)
 	_set_primed_tint(spell, false)
 	Fx.burst(get_parent(), global_position + Vector3.UP * 1.3, wand.get("color", Color.WHITE), 10, 2.4, 0.05, 0.25)
@@ -794,20 +841,18 @@ func cancel_chant() -> void:
 	chant_changed.emit(self, false)
 
 
-func _do_cast(slot: int, overcast: bool, check: Dictionary, perfect: bool = false) -> void:
+func _do_cast(slot: int, overcast: bool, check: Dictionary, perfect: bool = false, aim_dir: Vector3 = Vector3.ZERO) -> void:
 	var spell: SpellDef = check["spell"]
 	var stats: Dictionary = check["stats"]
 	if perfect and overcast:
-		var bonus := 1.0 + SpellDef.PERFECT_DAMAGE_BONUS
-		stats["damage"] = snappedf(float(stats["damage"]) * bonus, 0.1)
-		stats["shield"] = snappedf(float(stats["shield"]) * bonus, 0.1)
+		SpellDef.apply_perfect(stats)
 	stats["perfect"] = perfect
 	mana = maxf(0.0, mana - float(stats["mana"]))
 	selected_slot = slot
 	last_cast_slot = slot
 
 	var origin := get_muzzle_position()
-	var dir := get_aim_direction()
+	var dir := aim_dir if aim_dir != Vector3.ZERO else get_aim_direction()
 	Fx.burst(get_parent(), origin, stats["color"], 10, 4.0, 0.05, 0.25)
 	if _staff_light != null:
 		_staff_light.light_energy = 4.0
@@ -827,7 +872,7 @@ func _do_cast(slot: int, overcast: bool, check: Dictionary, perfect: bool = fals
 func _tick_timers(delta: float) -> void:
 	_time += 0.0
 	if alive and mana < max_mana:
-		var regen := mana_regen * (0.5 if chanting else (0.0 if primed_slot >= 0 else 1.0))
+		var regen := mana_regen * (0.5 if chanting else (0.0 if primed_slot >= 0 or has_shield("arcane") else 1.0))
 		mana = minf(max_mana, mana + regen * delta)
 		mana_changed.emit(self, mana, max_mana)
 	if _staff_light != null:
@@ -848,6 +893,14 @@ func _tick_timers(delta: float) -> void:
 			slow_amount = 0.0
 	if stun_time > 0.0:
 		stun_time = maxf(0.0, stun_time - delta)
+	if chill_time > 0.0:
+		chill_time = maxf(0.0, chill_time - delta)
+	if freeze_time > 0.0:
+		freeze_time = maxf(0.0, freeze_time - delta)
+	if freeze_immune > 0.0:
+		freeze_immune = maxf(0.0, freeze_immune - delta)
+	if _arc_cooldown > 0.0:
+		_arc_cooldown = maxf(0.0, _arc_cooldown - delta)
 	if shield_time > 0.0:
 		shield_time -= delta
 		if shield_time <= 0.0:
@@ -866,78 +919,243 @@ func _tick_timers(delta: float) -> void:
 
 # ---- Damage --------------------------------------------------------------
 
-func add_shield(amount: float, duration: float, color: Color = Color("8fe7ff")) -> void:
+func add_shield(amount: float, duration: float, color: Color = Color("8fe7ff"), element: String = "", stats: Dictionary = {}) -> void:
 	if not alive:
 		return
 	_shield_color = color
+	if element != shield_element or shield_time <= 0.0:
+		# A different aegis replaces the current one outright.
+		shield_hp = 0.0
+		shield_max = 0.0
+		shield_time = 0.0
+	shield_element = element
+	shield_stats = stats
+	shield_swallows = maxi(shield_swallows if element == "void" else 0, int(stats.get("swallows", 0)))
 	shield_max = maxf(shield_max, amount)
 	shield_hp = maxf(shield_hp, amount)
 	shield_time = maxf(shield_time, duration)
+	if element == "earth":
+		_knock = Vector3.ZERO
+	if element in ["frost", "fire"]:
+		slow_time = 0.0
+		slow_amount = 0.0
+		chill_time = 0.0
+		freeze_time = 0.0
+	_show_shield(color)
+	shield_changed.emit(self, shield_hp, shield_max)
+
+
+func _show_shield(color: Color) -> void:
 	if _shield_mesh != null:
 		_shield_mesh.visible = true
 		var mat := _shield_mesh.material_override as StandardMaterial3D
 		if mat != null:
-			mat.albedo_color = Color(color.r, color.g, color.b, 0.22)
+			var alpha := 0.34 if shield_element in ["earth", "frost"] else 0.22
+			mat.albedo_color = Color(color.r, color.g, color.b, alpha)
 			mat.emission = color
-	shield_changed.emit(self, shield_hp, shield_max)
 
 
 func _clear_shield() -> void:
 	shield_hp = 0.0
 	shield_max = 0.0
 	shield_time = 0.0
+	shield_element = ""
+	shield_swallows = 0
+	shield_stats = {}
 	if _shield_mesh != null:
 		_shield_mesh.visible = false
 	shield_changed.emit(self, 0.0, 0.0)
 
 
-func take_damage(amount: float, element: String, source_pos: Vector3, knockback: float = 0.0, apply_status: bool = true) -> void:
-	if not alive:
-		return
+## True while an aegis of this element is up ("" = any plain absorb).
+func has_shield(element: String) -> bool:
+	return shield_time > 0.0 and shield_element == element
 
+
+func is_chill_immune() -> bool:
+	return has_shield("frost") or has_shield("fire")
+
+
+## Stoneskin: immune to knockback, pull, stagger and jolt.
+func is_cc_immune() -> bool:
+	return has_shield("earth")
+
+
+func is_rooted_by_status() -> bool:
+	return stun_time > 0.0 or freeze_time > 0.0
+
+
+func move_speed_mult() -> float:
+	var mult := 1.0
+	if slow_time > 0.0 and not has_shield("frost"):
+		mult *= 1.0 - slow_amount
+	if shield_time > 0.0:
+		mult *= float(SpellData.cell(shield_element, "aegis").get("move_mult", 1.0))
+	return mult
+
+
+## HUD text for the active aegis.
+func shield_label() -> String:
+	if shield_time <= 0.0:
+		return ""
+	match shield_element:
+		"fire": return "HEAT AURA  %.1fs" % shield_time
+		"arcane": return "MANA SHIELD  %.1fs" % shield_time
+		"void": return "SHROUD  ×%d" % shield_swallows
+		"frost": return "ICE ARMOR  %d" % ceili(shield_hp)
+		"storm": return "STATIC SHELL  %d" % ceili(shield_hp)
+		"earth": return "STONESKIN  %d" % ceili(shield_hp)
+	return "SHIELD  %d" % ceili(shield_hp) if shield_hp > 0.0 else ""
+
+
+func _arena() -> Node:
+	var parent := get_parent()
+	if parent != null and parent.has_method("on_shield_broken"):
+		return parent
+	return null
+
+
+## Apply one hit. ``hit`` carries cell riders and context:
+## attacker (Wizard), projectile (bool), direct (bool, default true),
+## quiet (no damage number), burn (total), ignite (bool), chill / chill_time,
+## can_freeze (bool, default true), jolt, stagger, mana_burn,
+## pull_to (Vector3) + pull (metres). Returns the health actually lost.
+func take_damage(amount: float, element: String, source_pos: Vector3, knockback: float = 0.0, apply_status: bool = true, hit: Dictionary = {}) -> float:
+	if not alive:
+		return 0.0
+	var attacker: Variant = hit.get("attacker", null)
+	var direct := bool(hit.get("direct", true))
 	var incoming := amount
-	if shield_hp > 0.0:
-		var absorbed := minf(shield_hp, incoming)
-		shield_hp -= absorbed
-		incoming -= absorbed
-		Fx.burst(get_parent(), global_position + Vector3.UP * 1.0, _shield_color, 12, 3.5, 0.06, 0.35)
-		if shield_hp <= 0.0:
+
+	if direct and has_shield("storm") and _arc_cooldown <= 0.0 and attacker is Wizard and attacker != self:
+		_arc_cooldown = float(SpellData.cell(shield_element, "aegis").get("arc_cooldown", 0.5))
+		var a := _arena()
+		if a != null:
+			a.static_arc(self, attacker)
+
+	if bool(hit.get("projectile", false)) and has_shield("void") and shield_swallows > 0:
+		shield_swallows -= 1
+		heal(incoming * float(SpellData.cell(shield_element, "aegis").get("heal", 0.25)))
+		Fx.burst(get_parent(), global_position + Vector3.UP * 1.0, _shield_color, 16, 2.0, 0.07, 0.4)
+		if shield_swallows <= 0:
 			_clear_shield()
 		else:
 			shield_changed.emit(self, shield_hp, shield_max)
-	if incoming <= 0.0:
+		return 0.0
+
+	if has_shield("arcane") and mana > 0.0:
+		var paid := minf(mana, incoming)
+		mana -= paid
+		incoming -= paid
+		mana_changed.emit(self, mana, max_mana)
+		Fx.burst(get_parent(), global_position + Vector3.UP * 1.0, _shield_color, 10, 3.0, 0.06, 0.3)
+
+	if shield_hp > 0.0 and incoming > 0.0:
+		# Fire melts ice armor twice as fast.
+		var factor := 2.0 if shield_element == "frost" and element == "fire" else 1.0
+		var cost := incoming * factor
+		var absorbed := minf(shield_hp, cost)
+		shield_hp -= absorbed
+		incoming -= absorbed / factor
+		Fx.burst(get_parent(), global_position + Vector3.UP * 1.0, _shield_color, 12, 3.5, 0.06, 0.35)
+		if shield_hp <= 0.001:
+			var broken := shield_element
+			var broken_stats := shield_stats
+			_clear_shield()
+			var a := _arena()
+			if a != null:
+				a.on_shield_broken(self, broken, broken_stats)
+		else:
+			shield_changed.emit(self, shield_hp, shield_max)
+	if incoming <= 0.001:
 		# The shield held: no damage, no status, no chant interrupt.
-		return
+		return 0.0
 	amount = incoming
 
 	if chanting and amount >= 5.0 and chant_elapsed >= 0.15:
 		cancel_chant()
 		chant_interrupted.emit(self)
-	_apply_direct_damage(amount, _element_color(element), true)
+	_apply_direct_damage(amount, _element_color(element), not bool(hit.get("quiet", false)))
+	if not alive:
+		return amount
 
 	if apply_status:
-		match element:
-			"fire":
-				burn_time = maxf(burn_time, 3.0)
-				burn_total = maxf(burn_total, 6.0)
-			"frost":
-				slow_time = maxf(slow_time, 2.0)
-				slow_amount = maxf(slow_amount, 0.4)
-			"earth":
-				stun_time = maxf(stun_time, 0.35)
-				if chanting:
-					cancel_chant()
-					chant_interrupted.emit(self)
-			"arcane":
-				mana = maxf(0.0, mana - 12.0)
-				mana_changed.emit(self, mana, max_mana)
+		var burn := float(hit.get("burn", BURN_TOTAL if element == "fire" else 0.0))
+		if bool(hit.get("ignite", false)):
+			burn = maxf(burn, BURN_TOTAL)
+		if burn > 0.0:
+			burn_time = maxf(burn_time, 3.0)
+			burn_total = maxf(burn_total, burn)
+		if element == "frost" or hit.has("chill"):
+			apply_chill(float(hit.get("chill", CHILL_SLOW)), float(hit.get("chill_time", CHILL_TIME)), bool(hit.get("can_freeze", true)))
+		var jolt := float(hit.get("jolt", JOLT_TIME if element == "storm" else 0.0))
+		if jolt > 0.0:
+			apply_jolt(jolt)
+		var stagger := float(hit.get("stagger", STAGGER_TIME if element == "earth" else 0.0))
+		if stagger > 0.0 and not is_cc_immune():
+			stun_time = maxf(stun_time, stagger)
+			if chanting:
+				cancel_chant()
+				chant_interrupted.emit(self)
+		var burn_mana := float(hit.get("mana_burn", MANA_BURN if element == "arcane" else 0.0))
+		if burn_mana > 0.0:
+			mana = maxf(0.0, mana - burn_mana)
+			mana_changed.emit(self, mana, max_mana)
 
-	if knockback > 0.0:
-		var dir := (global_position - source_pos)
-		dir.y = 0.0
-		if dir.length() < 0.01:
-			dir = Vector3.FORWARD
-		_knock += dir.normalized() * knockback
+	if not is_cc_immune():
+		if knockback > 0.0:
+			var dir := (global_position - source_pos)
+			dir.y = 0.0
+			if dir.length() < 0.01:
+				dir = Vector3.FORWARD
+			_knock += dir.normalized() * knockback
+		if hit.has("pull_to") and float(hit.get("pull", 0.0)) > 0.0:
+			pull_toward(hit["pull_to"], float(hit["pull"]))
+	return amount
+
+
+## Chill slows; a second chill while chilled freezes (rooted, 3 s immunity
+## after). Zones refresh the slow without counting as a fresh chill.
+func apply_chill(amount: float, time: float, can_freeze: bool = true) -> void:
+	if not alive or is_chill_immune():
+		return
+	if can_freeze and chill_time > 0.0 and freeze_time <= 0.0 and freeze_immune <= 0.0:
+		freeze_time = FREEZE_TIME
+		freeze_immune = FREEZE_TIME + FREEZE_IMMUNITY
+		Fx.burst(get_parent(), global_position + Vector3.UP * 0.8, Color("bff6ff"), 18, 2.5, 0.08, 0.5)
+	chill_time = maxf(chill_time, time)
+	apply_slow(amount, time)
+
+
+func apply_slow(amount: float, time: float) -> void:
+	if not alive or has_shield("frost"):
+		return
+	slow_time = maxf(slow_time, time)
+	slow_amount = maxf(slow_amount, amount)
+
+
+## Jolt: a short stun that breaks chants. Freeze never does.
+func apply_jolt(time: float) -> void:
+	if not alive or is_cc_immune():
+		return
+	stun_time = maxf(stun_time, time)
+	if chanting:
+		cancel_chant()
+		chant_interrupted.emit(self)
+
+
+## Negative knockback: an impulse that travels ``metres`` toward ``point``
+## under the usual knockback decay (22 m/s^2), never overshooting it.
+func pull_toward(point: Vector3, metres: float) -> void:
+	if not alive or is_cc_immune():
+		return
+	var to := point - global_position
+	to.y = 0.0
+	var dist := to.length()
+	var travel := minf(metres, maxf(0.0, dist - 0.9))
+	if travel <= 0.01:
+		return
+	_knock += to.normalized() * sqrt(2.0 * 22.0 * travel)
 
 
 func _apply_direct_damage(amount: float, color: Color, show_number: bool) -> void:
@@ -970,7 +1188,10 @@ func _die() -> void:
 		return
 	alive = false
 	cancel_chant()
+	discard_primed()
 	_clear_shield()
+	freeze_time = 0.0
+	stun_time = 0.0
 	Fx.burst(get_parent(), global_position + Vector3.UP * 1.0, wand.get("color", Color.WHITE), 40, 9.0, 0.12, 0.9)
 	var tween := create_tween()
 	tween.set_parallel(true)
@@ -1028,14 +1249,14 @@ func get_aim_direction() -> Vector3:
 		return Vector3.FORWARD
 	var direction := d.normalized()
 	if primed_slot >= 0:
-		var spell := current_spell(primed_slot)
+		var spell := get_primed_spell()
 		if spell != null and spell.form in ["bolt", "orb", "beam"]:
 			for rival in get_tree().get_nodes_in_group("wizards"):
 				if rival == self or not rival is Wizard or not rival.alive:
 					continue
 				var to_rival: Vector3 = rival.global_position - origin
 				to_rival.y = 0.0
-				if to_rival.length() <= float(_primed_check["stats"].get("range", 15.0)) and direction.angle_to(to_rival.normalized()) <= deg_to_rad(10.0):
+				if to_rival.length() <= float(_primed_check.get("stats", {}).get("range", 15.0)) and direction.angle_to(to_rival.normalized()) <= deg_to_rad(10.0):
 					return to_rival.normalized()
 	return direction
 
