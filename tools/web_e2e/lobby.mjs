@@ -16,6 +16,7 @@ const output = path.join(here, 'output');
 await fs.mkdir(output, { recursive: true });
 
 const browser = await chromium.launch({
+  channel: 'chrome',
   headless: !headed,
   args: ['--use-gl=swiftshader', '--enable-unsafe-swiftshader', '--disable-background-timer-throttling', '--disable-renderer-backgrounding'],
 });
