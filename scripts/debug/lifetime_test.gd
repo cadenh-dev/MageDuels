@@ -32,6 +32,16 @@ func run(p_main: Node) -> int:
 		await _frames(2)
 		_check("cycle %d: one arena" % i, main.world.get_child_count() == 1, "children=%d" % main.world.get_child_count())
 		_check("cycle %d: duel wired" % i, main.player != null and main.enemy != null and main.hud != null and main.ai != null)
+		# Every cell: projectiles, beams, novas, wards, aegis, plus the zones
+		# and shards they leave behind, all torn down with the arena.
+		var wand: Dictionary = main.player.wand
+		for element in SpellData.element_ids():
+			for form in SpellData.form_ids():
+				var spell := SpellDef.new(element, form)
+				var caster: Wizard = main.player if (i + element.length()) % 2 == 0 else main.enemy
+				main.arena.spawn_spell(caster, spell, spell.resolved_stats(wand, true), caster.get_muzzle_position(), (main.arena.other(caster).global_position - caster.global_position).normalized())
+		await _frames(20)
+		_check("cycle %d: spellcraft entities alive" % i, main.arena.zones.get_child_count() > 0 and main.arena.walls.get_child_count() > 0)
 
 	main._clear_duel()
 	await _frames(4)

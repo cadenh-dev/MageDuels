@@ -35,6 +35,12 @@ func run(parent: Node3D) -> void:
 			var stats := spell.resolved_stats(wand, false)
 			arena.spawn_spell(p, spell, stats, p.get_muzzle_position(), Vector3.RIGHT)
 
+	# Ground hazards of every shape, so zone/flame pipelines compile too.
+	for element in ["fire", "frost", "void"]:
+		arena.spawn_zone({"owner": p, "element": element, "shape": "circle", "position": Vector3(-2, 0, 2), "radius": 1.2, "duration": 0.5})
+		arena.spawn_zone({"owner": p, "element": element, "shape": "band", "position": Vector3.ZERO, "inner": 4.0, "radius": 4.8, "duration": 0.5})
+		arena.spawn_zone({"owner": p, "element": element, "shape": "strip", "a": Vector3(-3, 0, -2), "b": Vector3(3, 0, -2), "half_width": 0.5, "duration": 0.5})
+
 	# Impact/UI variants that are not part of a projectile.
 	Fx.burst(arena.effects, Vector3.ZERO, Color.WHITE, 8, 3.0, 0.06, 0.3)
 	Fx.damage_number(arena.effects, Vector3.ZERO, 12.0, Color.WHITE)
@@ -108,6 +114,32 @@ func _build_keepalive(parent: Node3D) -> void:
 	ring.material_override = glow
 	ring.position = Vector3(0.35, -0.6, 0.0)
 	keep.add_child(ring)
+
+	# Ward materials (opaque stone, additive flame, glassy ice, mirror, rift)
+	# and ground-zone materials are duplicated per cast; keep each program.
+	var x := -0.6
+	for element in ["earth", "frost", "fire", "arcane", "void", "storm"]:
+		var ward := MeshInstance3D.new()
+		ward.mesh = box
+		ward.material_override = SpellWall._wall_material(element)
+		ward.position = Vector3(x, -0.7, 0.0)
+		keep.add_child(ward)
+		var trim := MeshInstance3D.new()
+		trim.mesh = box
+		trim.material_override = SpellWall._trim_material(element, SpellData.ELEMENTS[element]["color"])
+		trim.position = Vector3(x, -0.75, 0.05)
+		keep.add_child(trim)
+		var ground := MeshInstance3D.new()
+		ground.mesh = box
+		ground.material_override = SpellZone.zone_material(element)
+		ground.position = Vector3(x, -0.8, 0.1)
+		keep.add_child(ground)
+		x += 0.2
+	var flame := MeshInstance3D.new()
+	flame.mesh = box
+	flame.material_override = SpellZone.flame_particle_material()
+	flame.position = Vector3(0.6, -0.7, 0.0)
+	keep.add_child(flame)
 
 	var label := Label3D.new()
 	label.text = "0123456789"
