@@ -19,6 +19,7 @@ const HIT_HEIGHT := 0.9
 ## Charging a typed overcast is deliberately committal: longer than a quickcast
 ## window, long enough to be seen and interrupted.
 const CHANT_MIN_TIME := 1.6
+const CHANT_ONLY_CHAR_RATE := 8.0
 const CHANT_ASSIST_TIME := 2.3
 const CHANT_PERFECT_END := 1.95
 ## A failed incantation is not wasted if the caster got at least this far.
@@ -56,6 +57,8 @@ var chant_text := ""
 var chant_typos := 0
 var chant_elapsed := 0.0
 var assisted_chant := false
+var controller_chant := false
+var controller_word_index := 0
 ## Best correct-prefix length reached this chant, kept across typo resets so a
 ## late slip still leaves the player a weak partial cast.
 var chant_best := 0
@@ -500,7 +503,7 @@ func can_cast(slot: int, overcast: bool = false, overcast_mult: float = SpellDef
 
 
 func quickcast(slot: int) -> bool:
-	if chanting or not input_enabled:
+	if chanting or not input_enabled or (is_player and Game.cast_mode == Game.CAST_CHANT):
 		return false
 	if slot < 0 or slot > 3:
 		return false
@@ -512,7 +515,7 @@ func quickcast(slot: int) -> bool:
 	return true
 
 
-func begin_chant(slot: int, p_assisted: bool = false) -> bool:
+func begin_chant(slot: int, p_assisted: bool = false, p_controller: bool = false) -> bool:
 	if chanting or not alive or not input_enabled:
 		return false
 	var mult := SpellDef.ASSIST_OVERCAST_MULT if p_assisted else SpellDef.OVERCAST_MULT
@@ -522,6 +525,8 @@ func begin_chant(slot: int, p_assisted: bool = false) -> bool:
 		return false
 	chanting = true
 	assisted_chant = p_assisted
+	controller_chant = p_controller
+	controller_word_index = 0
 	chant_slot = slot
 	chant_text = ""
 	chant_typos = 0
@@ -554,11 +559,51 @@ func chant_key(character: String) -> void:
 		chant_typos += 1
 		if chant_text.length() > 0:
 			chant_text = ""
-		chant_changed.emit(self, true)
+	chant_changed.emit(self, true)
+
+
+func chant_word(word: String) -> void:
+	if not chanting:
+		return
+	var spell := current_spell(chant_slot)
+	if spell == null:
+		cancel_chant()
+		return
+	var next := spell.incantation().split(" ", false)
+	var offset := 0
+	for part in next:
+		offset += str(part).length()
+		if offset > chant_text.length():
+			if str(part).to_upper() == word.to_upper():
+				for ch in str(part):
+					chant_key(ch)
+			else:
+				chant_key("#")
+			return
+	# No words remain: an extra face-button press is a typo.
+	chant_key("#")
+
+
+func controller_chant_button(button_index: int) -> void:
+	if not chanting or not controller_chant:
+		return
+	var spell := current_spell(chant_slot)
+	if spell == null:
+		cancel_chant()
+		return
+	var words := spell.incantation().split(" ", false)
+	if button_index == controller_word_index and controller_word_index < words.size():
+		chant_word(str(words[controller_word_index]))
+		controller_word_index += 1
+	else:
+		chant_key("#")
 
 
 func chant_backspace() -> void:
 	if not chanting:
+		return
+	if chant_text.is_empty():
+		cancel_chant()
 		return
 	chant_text = chant_text.substr(0, maxi(0, chant_text.length() - 1))
 	chant_changed.emit(self, true)
@@ -628,6 +673,9 @@ func chant_time_target() -> float:
 
 
 func typed_charge_time() -> float:
+	if Game.cast_mode == Game.CAST_CHANT:
+		var spell := current_spell(chant_slot)
+		return (float(spell.incantation_compact().length()) / CHANT_ONLY_CHAR_RATE) * cast_time_mult if spell != null else 1.0
 	return CHANT_MIN_TIME * cast_time_mult
 
 
@@ -675,6 +723,7 @@ func cancel_chant() -> void:
 		return
 	chanting = false
 	assisted_chant = false
+	controller_chant = false
 	chant_slot = -1
 	chant_text = ""
 	chant_elapsed = 0.0
@@ -702,6 +751,7 @@ func _do_cast(slot: int, overcast: bool, check: Dictionary, perfect: bool = fals
 		_staff_light.light_energy = 4.0
 	chanting = false
 	assisted_chant = false
+	controller_chant = false
 	chant_slot = -1
 	chant_text = ""
 	chant_elapsed = 0.0
@@ -744,6 +794,8 @@ func _tick_timers(delta: float) -> void:
 		chant_elapsed += delta
 		if assisted_chant and chant_text.is_empty() and chant_elapsed >= assist_charge_time():
 			_finish_assisted()
+		elif controller_chant and current_spell(chant_slot) != null and chant_text == current_spell(chant_slot).incantation_compact() and chant_elapsed >= typed_charge_time():
+			chant_finish()
 
 
 # ---- Damage --------------------------------------------------------------

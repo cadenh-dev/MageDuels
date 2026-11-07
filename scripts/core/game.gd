@@ -25,10 +25,19 @@ var enemy_loadout: Dictionary = {}
 var ui_scale: float = 1.0
 var master_volume_db: float = 0.0
 var input_mode := "kb" ## "kb" | "pad"
+const SETTINGS_PATH := "user://settings.cfg"
+const CAST_CLASSIC := "classic"
+const CAST_CHANT := "chant"
+var cast_mode := CAST_CHANT
 
 
 func _ready() -> void:
 	randomize()
+	var settings := ConfigFile.new()
+	if settings.load(SETTINGS_PATH) == OK:
+		cast_mode = str(settings.get_value("game", "cast_mode", CAST_CHANT))
+	if cast_mode not in [CAST_CLASSIC, CAST_CHANT]:
+		cast_mode = CAST_CHANT
 	_install_input_map()
 	player_pages = SpellData.default_pages(player_wand)
 	enemy_pages = SpellData.default_pages(enemy_wand)
@@ -53,6 +62,13 @@ func record_round(player_won: bool) -> void:
 		player_score += 1
 	else:
 		enemy_score += 1
+
+
+func set_cast_mode(value: String) -> void:
+	cast_mode = CAST_CLASSIC if value.to_lower() == CAST_CLASSIC else CAST_CHANT
+	var settings := ConfigFile.new()
+	settings.set_value("game", "cast_mode", cast_mode)
+	settings.save(SETTINGS_PATH)
 
 
 func match_over() -> bool:
@@ -237,6 +253,8 @@ func _install_input_map() -> void:
 	_add_joy_buttons("swap_page", [JOY_BUTTON_RIGHT_SHOULDER, JOY_BUTTON_DPAD_LEFT])
 	_add_joy_buttons("toggle_camera", [JOY_BUTTON_RIGHT_STICK])
 	_add_joy_buttons("pause", [JOY_BUTTON_START])
+	# Left shoulder opens the chant spell wheel; right shoulder remains page swap.
+	_add_joy_buttons("chant_wheel", [JOY_BUTTON_LEFT_SHOULDER])
 
 
 func _add_keys(action: StringName, keycodes: Array) -> void:

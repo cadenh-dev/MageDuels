@@ -56,6 +56,8 @@ var _resume_button: Button
 var _coach: Coach
 var _last_page := -1
 var _rival_channel: Label
+var _spell_wheel: Control
+var _spell_wheel_labels: Array[Label] = []
 
 
 func setup(p_player: Wizard, p_enemy: Wizard, p_arena: Arena) -> void:
@@ -81,6 +83,7 @@ func connect_wizards() -> void:
 	if enemy != null:
 		enemy.cast_blocked.connect(_on_cast_blocked)
 		enemy.cast_fired.connect(_on_cast)
+		enemy.chant_changed.connect(func(_w, _a) -> void: _update_rival_channel())
 		enemy.chant_interrupted.connect(_on_chant_interrupted)
 
 
@@ -122,6 +125,7 @@ func _build() -> void:
 	_build_bottom_stack()
 	_build_toast()
 	_build_rival_channel()
+	_build_spell_wheel()
 	_build_flash()
 	_build_pause()
 	_build_coach()
@@ -436,6 +440,51 @@ func _build_rival_channel() -> void:
 	_root.add_child(_rival_channel)
 
 
+func _build_spell_wheel() -> void:
+	_spell_wheel = Control.new()
+	_spell_wheel.set_anchors_and_offsets_preset(Control.PRESET_CENTER)
+	_spell_wheel.position = Vector2(-170, -125)
+	_spell_wheel.custom_minimum_size = Vector2(340, 250)
+	_spell_wheel.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	_spell_wheel.visible = false
+	_root.add_child(_spell_wheel)
+	var panel := PanelContainer.new()
+	panel.set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT)
+	panel.add_theme_stylebox_override("panel", UIKit.panel_style(Color(0.04, 0.03, 0.08, 0.92), UIKit.GOLD, 16))
+	_spell_wheel.add_child(panel)
+	var title := UIKit.bold_label("CHOOSE A SPELL  ·  RELEASE LB TO PREPARE", 13, UIKit.GOLD)
+	title.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
+	title.set_anchors_and_offsets_preset(Control.PRESET_TOP_WIDE)
+	title.position.y = 14
+	_spell_wheel.add_child(title)
+	var positions := [Vector2(112, 54), Vector2(184, 104), Vector2(112, 154), Vector2(40, 104)]
+	for slot in 4:
+		var label := UIKit.bold_label("", 14, UIKit.INK)
+		label.position = positions[slot]
+		label.custom_minimum_size = Vector2(124, 50)
+		label.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
+		label.vertical_alignment = VERTICAL_ALIGNMENT_CENTER
+		label.add_theme_font_size_override("font_size", 12)
+		label.mouse_filter = Control.MOUSE_FILTER_IGNORE
+		_spell_wheel.add_child(label)
+		_spell_wheel_labels.append(label)
+
+
+func set_spell_wheel(active: bool, selected_slot: int = 0) -> void:
+	if _spell_wheel == null:
+		return
+	_spell_wheel.visible = active
+	if not active or player == null:
+		return
+	for slot in 4:
+		var spell := player.current_spell(slot)
+		if spell == null:
+			continue
+		var label := _spell_wheel_labels[slot]
+		label.text = "%s\n%s" % [spell.display_name().to_upper(), spell.incantation()]
+		label.add_theme_color_override("font_color", UIKit.GOLD if slot == selected_slot else UIKit.INK)
+
+
 func _build_flash() -> void:
 	_damage_flash = ColorRect.new()
 	_damage_flash.color = Color(0.95, 0.15, 0.25, 0.0)
@@ -525,7 +574,6 @@ func _process(_delta: float) -> void:
 	_update_slots()
 	_update_round_info()
 	_refresh_chant()
-	_update_rival_channel()
 	_update_input_hints()
 	if _coach != null and is_instance_valid(_coach):
 		_coach.update(_delta)
@@ -659,7 +707,20 @@ func _update_rival_channel() -> void:
 	if enemy != null and is_instance_valid(enemy) and enemy.chanting:
 		var spell := enemy.current_spell(enemy.chant_slot)
 		if spell != null:
-			_rival_channel.text = "RIVAL CHANTING  ·  %s  ·  INTERRUPT!" % spell.display_name().to_upper()
+			var incantation := spell.incantation()
+			var typed := enemy.chant_text.length()
+			var shown := ""
+			var letter_index := 0
+			for ch in incantation:
+				if ch == " ":
+					shown += " "
+				elif letter_index < typed:
+					shown += ch
+					letter_index += 1
+				else:
+					shown += "_"
+					letter_index += 1
+			_rival_channel.text = "RIVAL CHANTING  ·  %s  ·  INTERRUPT!" % shown.to_upper()
 		else:
 			_rival_channel.text = "RIVAL IS CHANTING…"
 	else:

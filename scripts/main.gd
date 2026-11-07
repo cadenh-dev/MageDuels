@@ -20,6 +20,8 @@ const CastTimingScript := preload("res://scripts/debug/cast_timing.gd")
 const FpsTestScript := preload("res://scripts/debug/fps_test.gd")
 var _last_action_ms := 0
 var _pad_aim := Vector2.RIGHT
+var _chant_wheel_open := false
+var _chant_wheel_slot := 0
 
 
 func _ready() -> void:
@@ -33,6 +35,9 @@ func _ready() -> void:
 	add_child(screens)
 
 	var args := OS.get_cmdline_user_args()
+	for arg_i in args.size():
+		if args[arg_i] == "--cast-mode" and arg_i + 1 < args.size():
+			Game.set_cast_mode(str(args[arg_i + 1]))
 	if "--audio-selftest" in args or "--voice-selftest" in args:
 		Audio.prepare()
 		await Audio.run_selftest()
@@ -430,7 +435,7 @@ func _process(_delta: float) -> void:
 				Input.get_joy_axis(pads[0], JOY_AXIS_RIGHT_X),
 				Input.get_joy_axis(pads[0], JOY_AXIS_RIGHT_Y)
 			)
-			if v.length() > 0.25:
+			if v.length() > 0.25 and not _chant_wheel_open:
 				_pad_aim = v.normalized()
 			var point := player.global_position + Vector3(_pad_aim.x, 0.0, _pad_aim.y) * 9.0
 			player.set_aim_world(point)
@@ -449,6 +454,16 @@ func _process(_delta: float) -> void:
 
 
 func _input(event: InputEvent) -> void:
+	if event is InputEventJoypadMotion and _chant_wheel_open:
+		var motion := event as InputEventJoypadMotion
+		if motion.axis == JOY_AXIS_RIGHT_X or motion.axis == JOY_AXIS_RIGHT_Y:
+			var x := Input.get_joy_axis(motion.device, JOY_AXIS_RIGHT_X)
+			var y := Input.get_joy_axis(motion.device, JOY_AXIS_RIGHT_Y)
+			if Vector2(x, y).length() > 0.45:
+				_chant_wheel_slot = (roundi(atan2(y, x) / (PI * 0.5)) + 1) % 4
+				_chant_wheel_slot = posmod(_chant_wheel_slot, 4)
+				if hud != null:
+					hud.set_spell_wheel(true, _chant_wheel_slot)
 	if event is InputEventJoypadButton or event is InputEventJoypadMotion:
 		Game.input_mode = "pad"
 	elif event is InputEventKey or event is InputEventMouseMotion or event is InputEventMouseButton:
@@ -456,6 +471,21 @@ func _input(event: InputEvent) -> void:
 
 
 func _unhandled_input(event: InputEvent) -> void:
+	if event.is_action_pressed("chant_wheel") and duel_active and not is_paused and Game.cast_mode == Game.CAST_CHANT:
+		_chant_wheel_open = true
+		_chant_wheel_slot = player.selected_slot if player != null else 0
+		if hud != null:
+			hud.set_spell_wheel(true, _chant_wheel_slot)
+		get_viewport().set_input_as_handled()
+		return
+	if event.is_action_released("chant_wheel") and _chant_wheel_open:
+		_chant_wheel_open = false
+		if hud != null:
+			hud.set_spell_wheel(false)
+		if player != null and is_instance_valid(player):
+			player.begin_chant(_chant_wheel_slot, false, true)
+		get_viewport().set_input_as_handled()
+		return
 	# Assisted overcast is hold-and-release, so catch the release before the chant
 	# keyboard block below swallows it.
 	if player != null and is_instance_valid(player) and player.assisted_chant and duel_active and not is_paused:
@@ -470,6 +500,19 @@ func _unhandled_input(event: InputEvent) -> void:
 			return
 
 	if player != null and is_instance_valid(player) and player.chanting and duel_active and not is_paused:
+		if event is InputEventJoypadButton and event.is_pressed():
+			var face := event as InputEventJoypadButton
+			var word_index := -1
+			match face.button_index:
+				JOY_BUTTON_A: word_index = 0
+				JOY_BUTTON_B: word_index = 1
+				JOY_BUTTON_X: word_index = 2
+				JOY_BUTTON_Y: word_index = 3
+			var spell := player.current_spell(player.chant_slot)
+			if spell != null and word_index >= 0:
+				player.controller_chant_button(word_index)
+			get_viewport().set_input_as_handled()
+			return
 		if event is InputEventKey:
 			var key := event as InputEventKey
 			if key.pressed and not key.echo:
@@ -494,6 +537,10 @@ func _unhandled_input(event: InputEvent) -> void:
 			_toggle_pause()
 			get_viewport().set_input_as_handled()
 		return
+	if event is InputEventJoypadButton and Game.cast_mode == Game.CAST_CHANT and not _chant_wheel_open:
+		if event.button_index in [JOY_BUTTON_A, JOY_BUTTON_B, JOY_BUTTON_X, JOY_BUTTON_Y]:
+			get_viewport().set_input_as_handled()
+			return
 
 	if is_paused or not duel_active:
 		return
@@ -501,15 +548,15 @@ func _unhandled_input(event: InputEvent) -> void:
 		return
 
 	if event.is_action_pressed("cast_1"):
-		player.quickcast(0)
+		_cast_input(0)
 	elif event.is_action_pressed("cast_2"):
-		player.quickcast(1)
+		_cast_input(1)
 	elif event.is_action_pressed("cast_3"):
-		player.quickcast(2)
+		_cast_input(2)
 	elif event.is_action_pressed("cast_4"):
-		player.quickcast(3)
+		_cast_input(3)
 	elif event.is_action_pressed("cast_mouse"):
-		player.quickcast(player.selected_slot)
+		_cast_input(player.selected_slot)
 	elif event.is_action_pressed("chant"):
 		if not player.chanting:
 			player.begin_chant(player.selected_slot)
@@ -527,6 +574,13 @@ func _unhandled_input(event: InputEvent) -> void:
 			var following := arena.toggle_follow(player)
 			if hud != null and is_instance_valid(hud):
 				hud.show_message("CAMERA  ·  %s" % ("FOLLOW" if following else "ARENA"), UIKit.MUTED, 0.7)
+
+
+func _cast_input(slot: int) -> void:
+	if Game.cast_mode == Game.CAST_CHANT:
+		player.begin_chant(slot)
+	else:
+		player.quickcast(slot)
 
 
 func _toggle_pause() -> void:

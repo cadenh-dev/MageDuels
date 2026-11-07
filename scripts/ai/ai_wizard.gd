@@ -146,6 +146,12 @@ func _physics_process(delta: float) -> void:
 
 func _think_move(_delta: float) -> void:
 	_move()
+	if Game.cast_mode == Game.CAST_CHANT:
+		if _cast_timer <= 0.0 and _can_see_target() and _nearest_projectile_distance() > 3.0:
+			_cast_timer = randf_range(0.65, 1.1) / maxf(0.7, difficulty)
+			if not _try_begin_chant():
+				_cast_timer = 1.0
+		return
 
 	if _chant_cooldown <= 0.0 and _can_see_target() and _nearest_projectile_distance() > 4.2:
 		if _try_begin_chant():
@@ -171,7 +177,7 @@ func _tick_windup(delta: float) -> void:
 		state = State.TYPING
 		_typing_index = 0
 		_typing_timer = 0.0
-		_typing_interval = randf_range(0.09, 0.14)
+		_typing_interval = 60.0 / (_typing_wpm() * 5.0)
 		# Give the honest chant enough time to finish typing *and* hold the
 		# charge, plus a little slack for a human player to interrupt it.
 		var spell := wizard.current_spell(_chant_slot)
@@ -207,7 +213,7 @@ func _tick_typing(delta: float) -> void:
 	if _typing_index < incant.length() and _typing_timer <= 0.0:
 		wizard.chant_key(incant.substr(_typing_index, 1))
 		_typing_index += 1
-		_typing_timer = _typing_interval
+		_typing_timer = _typing_interval + (randf_range(0.25, 0.55) if randf() < 0.025 else 0.0)
 
 	if _typing_index >= incant.length() and wizard.chant_progress() >= 1.0:
 		wizard.chant_finish()
@@ -223,6 +229,16 @@ func _enter_recover(seconds: float) -> void:
 	_state_timer = seconds
 	_cast_timer = maxf(_cast_timer, seconds * 0.5)
 	_chant_cooldown = maxf(_chant_cooldown, 3.0)
+	if Game.cast_mode == Game.CAST_CHANT:
+		_cast_timer = maxf(_cast_timer, randf_range(1.0, 1.8))
+
+
+func _typing_wpm() -> float:
+	if difficulty < 0.9:
+		return 30.0
+	if difficulty < 1.3:
+		return 45.0
+	return 65.0
 
 
 func _try_begin_chant() -> bool:
