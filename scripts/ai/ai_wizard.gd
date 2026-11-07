@@ -239,12 +239,27 @@ func _tick_primed(_delta: float) -> void:
 	var to_target := target.global_position - wizard.get_muzzle_position()
 	to_target.y = 0.0
 	var aim := wizard.get_center_aim_direction()
+	# Never fire a projectile or beam into an enemy Mirror Ward or Rift: wait
+	# for the line to clear, and let the spell fizzle out rather than reflect.
+	var spell := wizard.get_primed_spell()
+	if spell != null and _shot_blocked(spell):
+		if wizard.primed_remaining <= 0.15:
+			wizard.discard_primed()
+			_enter_recover(0.5)
+		return
 	if _state_timer <= 0.0 and aim.angle_to(to_target.normalized()) <= deg_to_rad(10.0):
 		wizard.release_primed()
 		_enter_recover(randf_range(0.4, 0.9))
 	elif wizard.primed_remaining <= 0.15:
 		wizard.release_primed()
 		_enter_recover(0.5)
+
+
+## True when a projectile/beam form would hit an enemy Mirror Ward or Rift.
+func _shot_blocked(spell: SpellDef) -> bool:
+	if arena == null or not is_instance_valid(arena) or not spell.form in ["bolt", "orb", "beam"]:
+		return false
+	return arena.hostile_ward_on_line(wizard, wizard.global_position, target.global_position) != null
 
 
 func _enter_recover(seconds: float) -> void:
@@ -338,6 +353,11 @@ func _score_spell(spell: SpellDef) -> float:
 		score += 0.45
 	if spell.form == "wall":
 		score += 1.2 if wizard.hp / wizard.max_hp < 0.6 else -0.6
+		# A primed rival is about to fire: put solid matter in the way.
+		if target != null and is_instance_valid(target) and target.primed_slot >= 0 and spell.element in ["earth", "frost"]:
+			score += 2.6
+	if _shot_blocked(spell):
+		score -= 3.0
 	if spell.form == "aegis":
 		score += 1.4 if wizard.hp / wizard.max_hp < 0.55 else -0.5
 	if spell.form == "nova" and wizard.global_position.distance_to(target.global_position) > 5.5:
@@ -376,7 +396,36 @@ func _strafe_move(scale: float) -> Vector3:
 	if _nearest_projectile_distance() < 3.0:
 		move += side * 0.9
 
+	move = _avoid_zones(move)
 	return move.normalized() * minf(1.0, move.length()) * scale
+
+
+## Steer out of (and around) hostile fire/ice zones and burning wards: pick the
+## safe direction closest to where it wanted to go.
+func _avoid_zones(move: Vector3) -> Vector3:
+	if arena == null or not is_instance_valid(arena):
+		return move
+	var here := wizard.global_position
+	var desired := move.normalized() if move.length() > 0.01 else Vector3.ZERO
+	var inside := arena.hostile_zone_at(wizard, here)
+	if not inside and (desired == Vector3.ZERO or not arena.hostile_zone_at(wizard, here + desired * 1.1)):
+		return move
+	var best := Vector3.ZERO
+	var best_score := -INF
+	for i in 12:
+		var dir := Vector3.FORWARD.rotated(Vector3.UP, TAU * float(i) / 12.0)
+		var probe := here + dir * 2.2
+		if Vector2(probe.x, probe.z).length() > 7.6:
+			continue
+		if arena.hostile_zone_at(wizard, probe):
+			continue
+		var score := dir.dot(desired) if desired != Vector3.ZERO else 0.0
+		if score > best_score:
+			best_score = score
+			best = dir
+	if best == Vector3.ZERO:
+		return move
+	return best * maxf(0.8, move.length())
 
 
 func _nearest_projectile_distance() -> float:
@@ -395,15 +444,9 @@ func _nearest_projectile_distance() -> float:
 
 
 func _can_see_target() -> bool:
-	if arena == null:
+	if arena == null or not is_instance_valid(arena):
 		return true
-	var space := arena.get_world_3d().direct_space_state
-	var from := wizard.global_position + Vector3.UP * 1.4
-	var to := target.global_position + Vector3.UP * 1.1
-	var query := PhysicsRayQueryParameters3D.create(from, to)
-	query.collision_mask = 1
-	var hit := space.intersect_ray(query)
-	return hit.is_empty()
+	return not arena.line_blocked(wizard.global_position, target.global_position)
 
 
 func stop() -> void:

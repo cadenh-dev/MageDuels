@@ -44,6 +44,7 @@ func run(p_main: Node) -> int:
 		main.ai._tick_windup(0.01)
 		_check("classic AI typing stays at 0.09–0.14s per character", main.ai._typing_interval >= 0.09 and main.ai._typing_interval <= 0.14, "interval=%.3f" % main.ai._typing_interval)
 		main.enemy.cancel_chant()
+	_spellcraft_checks()
 	main.ai.active = true
 	main.ai._chant_cooldown = 0.0
 	main.player.max_hp = 9999.0
@@ -90,6 +91,60 @@ func run(p_main: Node) -> int:
 		print("  FAIL: %s" % f)
 	print("AI: %s" % ("PASS" if _failures.is_empty() else "FAIL"))
 	return 0 if _failures.is_empty() else 1
+
+
+## Material-aware decisions: walls against a primed player, zone avoidance,
+## and never shooting into an enemy Mirror Ward or Rift.
+func _spellcraft_checks() -> void:
+	var ai: AIWizard = main.ai
+	var arena: Arena = main.arena
+	var enemy: Wizard = main.enemy
+	var player: Wizard = main.player
+	var saved_state: int = ai.state
+	enemy.global_position = Vector3(4, 0, 0)
+	player.global_position = Vector3(-4, 0, 0)
+	enemy.hp = enemy.max_hp
+	var stone := SpellDef.new("earth", "wall")
+	var bolt := SpellDef.new("frost", "bolt")
+	player.primed_slot = -1
+	var calm := 0.0
+	for i in 20:
+		calm += ai._score_spell(stone) - ai._score_spell(bolt)
+	player.primed_slot = 0
+	player.primed_page = 0
+	var threatened := 0.0
+	for i in 20:
+		threatened += ai._score_spell(stone) - ai._score_spell(bolt)
+	player.primed_slot = -1
+	player.primed_page = -1
+	_check("AI prefers Stone/Ice Wall when the player is primed", threatened / 20.0 > 0.5 and threatened > calm + 20.0 * 2.0, "calm %.2f primed %.2f" % [calm / 20.0, threatened / 20.0])
+
+	var mirror := SpellWall.new()
+	mirror.setup_ward({"arena": arena, "owner": player, "element": "arcane", "stats": SpellDef.new("arcane", "wall").resolved_stats(player.wand, false)})
+	arena.walls.add_child(mirror)
+	mirror.global_position = Vector3(0, 0, 0)
+	mirror.rotation.y = atan2(1.0, 0.0)
+	_check("AI sees the enemy Mirror Ward on its firing line", ai._shot_blocked(bolt))
+	_check("AI scores projectiles down into a Mirror Ward", ai._score_spell(bolt) < ai._score_spell(SpellDef.new("frost", "nova")) - 1.0)
+	enemy.primed_slot = 0
+	enemy.primed_page = 0
+	enemy.primed_spell = bolt
+	enemy.primed_remaining = 3.0
+	enemy._primed_check = {"spell": bolt, "stats": bolt.resolved_stats(enemy.wand, true)}
+	ai.state = AIWizard.State.PRIMED
+	ai._state_timer = 0.0
+	enemy.set_aim_world(player.global_position)
+	ai._tick_primed(0.016)
+	_check("AI holds a primed bolt instead of firing into a Mirror Ward", enemy.primed_slot == 0)
+	enemy.discard_primed()
+	ai.state = saved_state
+	mirror.free()
+
+	var zone := arena.spawn_zone({"owner": player, "element": "fire", "shape": "circle", "position": enemy.global_position,
+		"radius": 1.5, "duration": 3.0, "dps": 4.0})
+	var out := ai._avoid_zones(Vector3.ZERO)
+	_check("AI steps out of a hostile fire zone", out.length() > 0.5 and not arena.hostile_zone_at(enemy, enemy.global_position + out.normalized() * 1.6), "out %s" % str(out))
+	zone.free()
 
 
 func _until(condition: Callable, timeout: float, label: String) -> bool:
