@@ -46,6 +46,12 @@ func _ready() -> void:
 		var net_test: Node = load("res://scripts/debug/net_test.gd").new()
 		add_child(net_test)
 		return
+	if "--gdsync-probe" in args:
+		await _run_gdsync_probe()
+		return
+	if "--gdsync-duel-host" in args or "--gdsync-duel-join" in args:
+		await _run_gdsync_duel("--gdsync-duel-host" in args)
+		return
 	if "--net-host" in args or "--net-join" in args:
 		await _boot()
 		show_online()
@@ -252,6 +258,123 @@ func _online_disconnected(reason: String) -> void:
 	if not is_instance_valid(online_match):
 		menu_notice = reason
 		show_menu()
+
+func _run_gdsync_probe() -> void:
+	var started := Time.get_ticks_msec()
+	var stage := "connect"
+	var outcome := {"value": ""}
+	GDSync.connected.connect(func() -> void: outcome["value"] = "connected", CONNECT_ONE_SHOT)
+	GDSync.connection_failed.connect(func(error: int) -> void: outcome["value"] = "connection_failed:%d" % error, CONNECT_ONE_SHOT)
+	GDSync.start_multiplayer()
+	if not await _wait_probe(func() -> bool: return not str(outcome["value"]).is_empty(), 20000):
+		GDSync.stop_multiplayer()
+		print("GDSYNC PROBE FAIL: connection timed out")
+		get_tree().quit(1)
+		return
+	if outcome["value"] != "connected":
+		GDSync.stop_multiplayer()
+		print("GDSYNC PROBE FAIL: %s" % outcome)
+		get_tree().quit(1)
+		return
+	var code := "SC" + str(Time.get_ticks_msec() % 100000).pad_zeros(5)
+	outcome["value"] = ""
+	stage = "private lobby create/join"
+	GDSync.lobby_created.connect(func(name: String) -> void:
+		if name == code:
+			GDSync.lobby_join(name)
+	, CONNECT_ONE_SHOT)
+	GDSync.lobby_creation_failed.connect(func(_name: String, error: int) -> void: outcome["value"] = "create_failed:%d" % error, CONNECT_ONE_SHOT)
+	GDSync.lobby_joined.connect(func(name: String) -> void:
+		if name == code:
+			outcome["value"] = "joined"
+	, CONNECT_ONE_SHOT)
+	GDSync.lobby_join_failed.connect(func(_name: String, error: int) -> void: outcome["value"] = "join_failed:%d" % error, CONNECT_ONE_SHOT)
+	GDSync.lobby_create(code, "", false, 2, {"protocol": OnlineSession.PROTOCOL, "state": "waiting"})
+	if not await _wait_probe(func() -> bool: return not str(outcome["value"]).is_empty(), 15000) or outcome["value"] != "joined":
+		GDSync.stop_multiplayer()
+		print("GDSYNC PROBE FAIL: %s (%s)" % [stage, outcome["value"] if not str(outcome["value"]).is_empty() else "timed out"])
+		get_tree().quit(1)
+		return
+	stage = "public lobby listing"
+	outcome["value"] = ""
+	GDSync.lobbies_received.connect(func(_lobbies: Array) -> void: outcome["value"] = "listed", CONNECT_ONE_SHOT)
+	GDSync.get_public_lobbies()
+	if not await _wait_probe(func() -> bool: return outcome["value"] == "listed", 10000):
+		GDSync.lobby_leave()
+		GDSync.stop_multiplayer()
+		print("GDSYNC PROBE FAIL: %s timed out" % stage)
+		get_tree().quit(1)
+		return
+	GDSync.lobby_leave()
+	GDSync.stop_multiplayer()
+	print("GDSYNC PROBE PASS: connected, private lobby create/join, public listing, leave/disconnect; %d ms" % (Time.get_ticks_msec() - started))
+	get_tree().quit(0)
+
+func _run_gdsync_duel(hosting: bool) -> void:
+	await _boot()
+	NetSession.prepare_online()
+	var code_path := "user://gdsync_duel_code.txt"
+	if hosting:
+		NetSession.host({"public": false, "host_name": Game.player_name, "cast_mode": Game.cast_mode})
+		var deadline := Time.get_ticks_msec() + 20000
+		while NetSession.room_code.is_empty() and Time.get_ticks_msec() < deadline:
+			await get_tree().process_frame
+		if NetSession.room_code.is_empty():
+			print("GDSYNC DUEL FAIL: host did not create a lobby")
+			get_tree().quit(1)
+			return
+		var code_file := FileAccess.open(code_path, FileAccess.WRITE)
+		if code_file == null:
+			print("GDSYNC DUEL FAIL: could not publish the local lobby code")
+			get_tree().quit(1)
+			return
+		code_file.store_string(NetSession.room_code)
+		code_file.close()
+	else:
+		var deadline := Time.get_ticks_msec() + 20000
+		var code := ""
+		while code.is_empty() and Time.get_ticks_msec() < deadline:
+			if FileAccess.file_exists(code_path):
+				var code_file := FileAccess.open(code_path, FileAccess.READ)
+				if code_file != null:
+					code = code_file.get_as_text().strip_edges()
+			await get_tree().create_timer(0.25).timeout
+		if code.is_empty():
+			print("GDSYNC DUEL FAIL: no host lobby code arrived")
+			get_tree().quit(1)
+			return
+		NetSession.join(code, Game.player_name)
+	var connected := await _wait_probe(func() -> bool: return is_instance_valid(online_match) and online_match.phase == "duel", 30000)
+	if not connected:
+		var failed_transport := NetSession.transport as GDSyncTransport
+		print("GDSYNC DUEL FAIL: match did not start; state=%d host=%s lobby=%s peers=%d sent=%d received=%d" % [NetSession.state, NetSession.is_host(), failed_transport._in_lobby, failed_transport.peer_join_events, failed_transport.bytes_sent, failed_transport.bytes_received])
+		NetSession.leave()
+		get_tree().quit(1)
+		return
+	online_match.controls = false
+	var transport := NetSession.transport as GDSyncTransport
+	var sent_start := transport.bytes_sent
+	var started := Time.get_ticks_msec()
+	while Time.get_ticks_msec() - started < 6000 and is_instance_valid(online_match):
+		var elapsed := float(Time.get_ticks_msec() - started) / 1000.0
+		var move := Vector2(0.4 if elapsed < 3.0 else -0.4, 0.0)
+		var opponent := online_match.wizards[1 - online_match.local_index].global_position
+		online_match.set_input(move, opponent)
+		await get_tree().create_timer(0.033).timeout
+	if hosting and is_instance_valid(online_match) and online_match.phase == "duel":
+		online_match.wizards[1].take_damage(99999.0, "arcane", Vector3.ZERO, 0.0, false)
+	await get_tree().create_timer(1.0).timeout
+	var elapsed_ms := maxi(1, Time.get_ticks_msec() - started)
+	var sent := transport.bytes_sent - sent_start
+	print("GDSYNC DUEL %s: sent=%d B (%.1f B/s), received=%d B, RTT=%d ms, phase=%s, duration=%.1f s" % ["HOST" if hosting else "JOIN", sent, float(sent) * 1000.0 / elapsed_ms, transport.bytes_received, NetSession.rtt_ms, online_match.phase if is_instance_valid(online_match) else "ended", float(elapsed_ms) / 1000.0])
+	NetSession.leave()
+	get_tree().quit(0)
+
+func _wait_probe(condition: Callable, timeout_ms: int) -> bool:
+	var deadline := Time.get_ticks_msec() + timeout_ms
+	while not condition.call() and Time.get_ticks_msec() < deadline:
+		await get_tree().process_frame
+	return bool(condition.call())
 
 
 func _on_play_pressed() -> void:

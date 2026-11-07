@@ -41,11 +41,18 @@ func use_transport(value: NetTransport) -> void:
 	transport.failed.connect(_disconnect)
 	transport.message_received.connect(_receive)
 
+func prepare_online() -> void:
+	if transport == null:
+		var args := OS.get_cmdline_user_args()
+		var cli_enet := "--net-host" in args or "--net-join" in args
+		var relay_cli := "--gdsync-probe" in args or "--gdsync-duel-host" in args or "--gdsync-duel-join" in args
+		var use_enet := cli_enet or (OS.has_feature("headless") and not relay_cli)
+		var script := "res://scripts/net/enet_transport.gd" if use_enet else "res://scripts/net/gdsync_transport.gd"
+		use_transport(load(script).new())
+
 func host(options: Dictionary) -> void:
 	if transport == null:
-		# Resolve the default backend lazily: keep provider dependencies out of
-		# autoload compilation, and allow use_transport() to inject a relay.
-		use_transport(load("res://scripts/net/enet_transport.gd").new())
+		prepare_online()
 	local_name = str(options.get("host_name", str(_game.player_name))).strip_edges().left(24)
 	cast_mode = str(options.get("cast_mode", _game.cast_mode))
 	_set_state(State.HOSTING_WAITING, "Waiting for an opponent")
@@ -55,7 +62,7 @@ func host(options: Dictionary) -> void:
 
 func join(code: String, player_name: String = "") -> void:
 	if transport == null:
-		use_transport(load("res://scripts/net/enet_transport.gd").new())
+		prepare_online()
 	local_name = (str(_game.player_name) if player_name.is_empty() else player_name).strip_edges().left(24)
 	room_code = code
 	_last_receive = Time.get_ticks_msec()
@@ -120,6 +127,8 @@ func _receive(msg: Dictionary) -> void:
 		_: message_received.emit(msg)
 
 func begin_match() -> void:
+	if transport != null:
+		transport.set_match_state("in_match")
 	_set_state(State.IN_MATCH, "In match")
 
 func send_reliable(msg: Dictionary) -> void:
@@ -144,6 +153,7 @@ func _process(_delta: float) -> void:
 func leave() -> void:
 	if transport != null:
 		send_reliable({"type": "bye"})
+		transport.set_match_state("waiting")
 		transport.leave()
 	_peer_present = false
 	room_code = ""
@@ -153,6 +163,8 @@ func leave() -> void:
 	_set_state(State.IDLE, "")
 
 func _disconnect(reason: String) -> void:
+	if state == State.DISCONNECTED:
+		return
 	leave()
 	_set_state(State.DISCONNECTED, reason)
 	disconnected.emit(reason)

@@ -30,3 +30,6 @@ tools/voice/voicebank/
 # Local AI tooling (editor-only Godot MCP plugin, OpenCode config)
 addons/godot_mcp/
 opencode.json
+
+# GD-Sync API keys. Never commit these.
+addons/GD-Sync/keys.cfg

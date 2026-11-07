@@ -35,3 +35,6 @@ func send_unreliable(_msg: Dictionary) -> void:
 
 func is_host() -> bool:
 	return false
+
+func set_match_state(_value: String) -> void:
+	pass

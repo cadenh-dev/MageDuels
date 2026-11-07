@@ -25,6 +25,11 @@ SpellData="*res://scripts/core/spell_data.gd"
 Audio="*res://scripts/core/audio.gd"
 AsciiFx="*res://scripts/world/ascii_fx.gd"
 NetSession="*res://scripts/net/net_session.gd"
+GDSync="*res://addons/GD-Sync/MultiplayerClient.gd"
+
+[editor_plugins]
+
+enabled=PackedStringArray("res://addons/GD-Sync/plugin.cfg")
 
 [display]
 

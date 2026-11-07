@@ -61,8 +61,7 @@ func _ready() -> void:
 		cancel_pressed.emit()
 	)
 	box.add_child(cancel)
-	if NetSession.transport == null:
-		NetSession.use_transport(ENetTransport.new())
+	NetSession.prepare_online()
 	NetSession.state_changed.connect(_update_status)
 	_update_status()
 	_refresh()
