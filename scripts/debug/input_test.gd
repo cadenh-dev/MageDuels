@@ -9,6 +9,8 @@ var _failures: Array[String] = []
 var main: Node
 var p: Wizard
 var _last_stats: Dictionary = {}
+var _last_spell: SpellDef
+var _last_direction := Vector3.ZERO
 
 
 func run(p_main: Node) -> int:
@@ -102,6 +104,37 @@ func run(p_main: Node) -> int:
 	p.primed_remaining = 0.02
 	await get_tree().create_timer(0.1, false).timeout
 	_check("primed spell expires at its six-second limit", p.primed_slot < 0)
+
+	# Page swap while primed: the primed spell, not the new page's slot, fires
+	# and drives soft-lock. Page B slot 0 is a nova, which never soft-locks.
+	p.mana = p.max_mana
+	p.page = 0
+	var primed_def: SpellDef = p.current_spell(0)
+	p.begin_chant(0)
+	for ch in primed_def.incantation_compact():
+		p.chant_key(ch)
+	await get_tree().create_timer(p.typed_charge_time() + 0.1, false).timeout
+	_check("spell primes before the page swap", p.primed_slot == 0)
+	_send_key(KEY_SHIFT, KEY_SHIFT, 0)
+	await get_tree().process_frame
+	_send_key(KEY_SHIFT, KEY_SHIFT, 0, false)
+	var swapped_def: SpellDef = p.current_spell(0)
+	_check("page swap is allowed while primed", p.page == 1 and p.primed_slot == 0 and not swapped_def.equals(primed_def), "page=%d %s vs %s" % [p.page, swapped_def.display_name(), primed_def.display_name()])
+	_check("the primed spell survives the swap", p.get_primed_spell() != null and p.get_primed_spell().equals(primed_def))
+	p.global_position = Vector3.ZERO
+	var lock_muzzle := p.get_muzzle_position()
+	main.enemy.global_position = lock_muzzle + Vector3(0, -lock_muzzle.y, -5)
+	p.set_aim_world(lock_muzzle + Vector3.FORWARD.rotated(Vector3.UP, deg_to_rad(6.0)) * 10.0)
+	_check("soft-lock uses the primed spell's form after a swap", p.get_aim_direction().dot(Vector3.FORWARD) > 0.999)
+	_last_spell = null
+	var click_release := InputEventMouseButton.new()
+	click_release.button_index = MOUSE_BUTTON_LEFT
+	click_release.pressed = true
+	main._unhandled_input(click_release)
+	_check("release after a page swap fires the original spell", _last_spell != null and _last_spell.equals(primed_def), "fired %s" % (_last_spell.display_name() if _last_spell != null else "nothing"))
+	_check("released spell was soft-locked", _last_direction.dot(Vector3.FORWARD) > 0.999, "dir %s" % str(_last_direction))
+	p.page = 0
+	p.global_position = Vector3(-5, 0, 0)
 
 	_send_key(KEY_SHIFT, KEY_SHIFT, 0)
 	await get_tree().process_frame
@@ -248,8 +281,10 @@ func run(p_main: Node) -> int:
 	return 0 if _failures.is_empty() else 1
 
 
-func _on_cast(_wiz: Wizard, _spell: SpellDef, stats: Dictionary, _origin: Vector3, _direction: Vector3) -> void:
+func _on_cast(_wiz: Wizard, spell: SpellDef, stats: Dictionary, _origin: Vector3, direction: Vector3) -> void:
 	_last_stats = stats
+	_last_spell = spell
+	_last_direction = direction
 
 
 func _send_char(ch: String) -> void:

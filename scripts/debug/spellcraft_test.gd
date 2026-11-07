@@ -573,6 +573,17 @@ func _statuses() -> void:
 	e.take_damage(4.0, "void", Vector3.ZERO, 0.0, true, {"pull_to": Vector3.ZERO, "pull": 2.0})
 	_check("pull is negative knockback toward the source", e._knock.x < -5.0, "knock %.2f" % e._knock.x)
 
+	# Unit A: a primed spell must not outlive its caster.
+	await _reset()
+	e.begin_chant(0)
+	for ch in e.current_spell(0).incantation_compact():
+		e.chant_key(ch)
+	await _wait(e.typed_charge_time() + 0.1)
+	_check("rival primes", e.primed_slot == 0)
+	e.take_damage(9999.0, "void", Vector3.ZERO)
+	_check("death discards the primed spell", e.primed_slot < 0 and e.get_primed_spell() == null)
+	_check("a dead wizard cannot release", not e.release_primed())
+
 
 # ---- Scaling ------------------------------------------------------------------
 
