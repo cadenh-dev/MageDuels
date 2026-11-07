@@ -14,6 +14,8 @@ var _connection_ready := false
 var _requested_code := ""
 var _requested_options: Dictionary = {}
 var _create_attempts := 0
+var _create_retry_pending := false
+var _create_retry_generation := 0
 var _leaving := false
 var bytes_sent := 0
 var bytes_received := 0
@@ -51,6 +53,8 @@ func host(options: Dictionary) -> void:
 	_hosting = true
 	_requested_options = options.duplicate(true)
 	_create_attempts = 0
+	_create_retry_pending = false
+	_create_retry_generation += 1
 	_ensure_connected()
 
 func _create_lobby() -> void:
@@ -99,10 +103,25 @@ func _on_lobby_created(name: String) -> void:
 func _on_lobby_creation_failed(name: String, error: int) -> void:
 	if not _hosting or name != room_code:
 		return
-	if error == ENUMS.LOBBY_CREATION_ERROR.LOBBY_ALREADY_EXISTS:
-		_create_lobby()
+	if _create_retry_required(error):
+		_retry_lobby_create()
 	else:
 		failed.emit(_lobby_create_error(error))
+
+static func _create_retry_required(error: int) -> bool:
+	return error in [ENUMS.LOBBY_CREATION_ERROR.LOBBY_ALREADY_EXISTS, ENUMS.LOBBY_CREATION_ERROR.ON_COOLDOWN]
+
+func _retry_lobby_create() -> void:
+	if _create_retry_pending:
+		return
+	_create_retry_pending = true
+	var generation := _create_retry_generation
+	await get_tree().create_timer(3.1).timeout
+	if generation != _create_retry_generation:
+		return
+	_create_retry_pending = false
+	if _hosting:
+		_create_lobby() # Generates a fresh code and uses the bounded attempt count.
 
 func _on_lobby_joined(name: String) -> void:
 	if name != room_code and name != _requested_code:
@@ -241,6 +260,8 @@ func leave() -> void:
 	_leaving = true
 	_requested_code = ""
 	_requested_options.clear()
+	_create_retry_pending = false
+	_create_retry_generation += 1
 	if GDSync.is_active():
 		if _in_lobby:
 			GDSync.lobby_leave()
