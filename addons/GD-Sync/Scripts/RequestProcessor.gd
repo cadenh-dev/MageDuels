@@ -945,6 +945,8 @@ func secure_connection() -> void:
 	await get_tree().create_timer(0.5).timeout
 	if connection_generation != connection_controller.connection_i:
 		return
+	# SHIFTCAST patch: pair the web relay trace with the addon's final auth step.
+	connection_controller._shiftcast_debug("session authentication secured")
 	connection_controller.status = ENUMS.CONNECTION_STATUS.CONNECTION_SECURED
 
 	if server_switch_controller.connection_secured():

@@ -801,6 +801,7 @@ func _process(delta) -> void:
 					_send_websocket_packet(request_processor.package_requests(ENUMS.PACKET_CHANNEL.UNRELIABLE))
 
 func set_client_id(client_id : int) -> void:
+	_shiftcast_debug("server assigned client id")
 	logger.write_log("Client id received from server. <"+str(client_id)+">")
 	logger.register_profiler_data("client_id", client_id)
 	self.client_id = client_id
@@ -809,6 +810,7 @@ func set_client_id(client_id : int) -> void:
 	request_processor.validate_public_key()
 
 func set_client_key(client_key: String) -> void:
+	_shiftcast_debug("server supplied session key")
 	logger.write_log("Client key received from server. <" + client_key + ">")
 	if client_key.is_empty():
 		logger.write_error("Client key was empty or public key invalid.")

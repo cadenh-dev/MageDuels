@@ -21,6 +21,8 @@ The vendored BSD-2 addon has two documented local changes in
 `ConnectionController.gd`: opt-in `?netdebug=1` stage timing logs, and a 1.25 s
 cap on parallel web server pings. If both optional ping endpoints fail, the
 connection tries the configured hubs in order instead of failing discovery.
+The trace marks the load-balancer response, selected hub/WebSocket attempt,
+server client-id and session-key responses, and completed session authentication.
 The adapter ignores duplicate `lobby_joined` events for its current room so
 they cannot emit duplicate game-level lobby transitions.
 
