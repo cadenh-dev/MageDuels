@@ -23,11 +23,22 @@ var peer_join_events := 0
 var _known_host_id := -1
 var _peer_notified := false
 var backend_ready := false
+var _netdebug := false
+var _debug_started_ms := 0
+var _attempt_started_ms := 0
+var _attempt_stage := ""
+
+func _debug(event: String, details: String = "") -> void:
+	if _netdebug:
+		print("[NET %dms] transport %s%s" % [Time.get_ticks_msec() - _debug_started_ms, event, (" " + details) if not details.is_empty() else ""])
 
 func _bind_signals() -> void:
 	if _bound:
 		return
 	_bound = true
+	if OS.has_feature("web"):
+		_netdebug = bool(JavaScriptBridge.eval("new URLSearchParams(window.location.search).get('netdebug') === '1'"))
+	_debug_started_ms = Time.get_ticks_msec()
 	GDSync.connected.connect(_on_connected)
 	GDSync.connection_failed.connect(_on_connection_failed)
 	GDSync.disconnected.connect(_on_disconnected)
@@ -44,9 +55,13 @@ func _bind_signals() -> void:
 func _ensure_connected() -> void:
 	_bind_signals()
 	if GDSync.is_active():
+		_debug("already active")
 		_on_connected()
 	elif not _starting:
 		_starting = true
+		_attempt_started_ms = Time.get_ticks_msec()
+		_attempt_stage = "connection"
+		_debug("start_multiplayer called")
 		GDSync.start_multiplayer()
 
 func host(options: Dictionary) -> void:
@@ -71,6 +86,9 @@ func _create_lobby() -> void:
 		failed.emit("Could not reserve a lobby code. Please try hosting again.")
 		return
 	room_code = _random_code()
+	_attempt_started_ms = Time.get_ticks_msec()
+	_attempt_stage = "lobby_create"
+	_debug("lobby_create", "code=" + room_code)
 	var tags := {"protocol": PROTOCOL, "cast_mode": str(_requested_options.get("cast_mode", "chant")),
 		"host_name": str(_requested_options.get("host_name", "Wizard")).left(24), "state": "waiting"}
 	GDSync.lobby_create(room_code, "", bool(_requested_options.get("public", false)), 2, tags)
@@ -79,6 +97,9 @@ func join(code: String) -> void:
 	_prepare_lobby_request()
 	_hosting = false
 	_requested_code = code.strip_edges().to_upper()
+	_attempt_started_ms = Time.get_ticks_msec()
+	_attempt_stage = "lobby_join"
+	_debug("join requested", "code=" + _requested_code)
 	if GDSync.is_active():
 		_connection_ready = true
 		GDSync.lobby_join(_requested_code)
@@ -100,6 +121,8 @@ func _prepare_lobby_request() -> void:
 	backend_ready = GDSync.is_active()
 
 func _on_connected() -> void:
+	_debug("connected signal")
+	_attempt_stage = ""
 	_starting = false
 	backend_ready = true
 	if _connection_ready:
@@ -111,11 +134,14 @@ func _on_connected() -> void:
 		GDSync.lobby_join(_requested_code)
 
 func _on_connection_failed(error: int) -> void:
+	_debug("connection_failed", "err=" + str(error))
+	_attempt_stage = ""
 	_starting = false
 	backend_ready = false
 	failed.emit(_connection_error(error))
 
 func _on_disconnected() -> void:
+	_debug("disconnected signal")
 	if _leaving:
 		return
 	_in_lobby = false
@@ -123,15 +149,20 @@ func _on_disconnected() -> void:
 	failed.emit("GD-Sync connection lost. Return to the menu and reconnect.")
 
 func _on_lobby_created(name: String) -> void:
+	_debug("lobby_created", "name=" + name)
 	if _hosting and name == room_code:
+		_attempt_started_ms = Time.get_ticks_msec()
+		_attempt_stage = "lobby_join_after_create"
 		GDSync.lobby_join(name)
 
 func _on_lobby_creation_failed(name: String, error: int) -> void:
+	_debug("lobby_creation_failed", "name=" + name + " err=" + str(error))
 	if not _hosting or name != room_code:
 		return
 	if _create_retry_required(error):
 		_retry_lobby_create()
 	else:
+		_attempt_stage = ""
 		failed.emit(_lobby_create_error(error))
 
 static func _create_retry_required(error: int) -> bool:
@@ -150,24 +181,41 @@ func _retry_lobby_create() -> void:
 		_create_lobby() # Generates a fresh code and uses the bounded attempt count.
 
 func _on_lobby_joined(name: String) -> void:
+	_debug("lobby_joined", "name=" + name)
 	if name != room_code and name != _requested_code:
 		return
 	room_code = name
+	_attempt_stage = ""
 	_in_lobby = true
 	_known_host_id = -1
 	_peer_notified = false
 	connected.emit()
 
 func _on_lobby_join_failed(name: String, error: int) -> void:
+	_debug("lobby_join_failed", "name=" + name + " err=" + str(error))
 	if name == _requested_code or name == room_code:
+		_attempt_stage = ""
 		failed.emit(_lobby_join_error(error))
 
+func _process(_delta: float) -> void:
+	if _attempt_stage.is_empty() or Time.get_ticks_msec() - _attempt_started_ms < 12000:
+		return
+	var stage := _attempt_stage
+	_attempt_stage = ""
+	_debug("timeout", "stage=" + stage)
+	_starting = false
+	_connection_ready = false
+	backend_ready = false
+	failed.emit("GD-Sync %s timed out. Please try again." % stage.replace("_", " "))
+
 func _on_client_joined(client_id: int) -> void:
+	_debug("client_joined", "id=" + str(client_id))
 	if _in_lobby and client_id != GDSync.get_client_id():
 		if is_host() or client_id == GDSync.get_host():
 			_notify_peer_joined()
 
 func _on_client_left(client_id: int) -> void:
+	_debug("client_left", "id=" + str(client_id))
 	if _in_lobby and client_id != GDSync.get_client_id():
 		peer_left.emit()
 
@@ -191,6 +239,8 @@ func _on_packet(payload: PackedByteArray) -> void:
 	if not decoded is Dictionary or not decoded.get("type") is String:
 		return
 	bytes_received += payload.size()
+	if bytes_received == payload.size():
+		_debug("first message received", "bytes=" + str(payload.size()))
 	var msg: Dictionary = decoded
 	message_received.emit(msg)
 
@@ -205,6 +255,8 @@ func send_reliable(msg: Dictionary) -> void:
 	if not _in_lobby:
 		return
 	var payload := var_to_bytes(msg).compress(FileAccess.COMPRESSION_DEFLATE)
+	if bytes_sent == 0:
+		_debug("first message sent", "type=" + str(msg.get("type", "?")))
 	bytes_sent += payload.size()
 	if is_host():
 		GDSync.call_func(_on_packet, payload)
@@ -215,6 +267,8 @@ func send_unreliable(msg: Dictionary) -> void:
 	if not _in_lobby:
 		return
 	var payload := var_to_bytes(msg).compress(FileAccess.COMPRESSION_DEFLATE)
+	if bytes_sent == 0:
+		_debug("first message sent", "type=" + str(msg.get("type", "?")))
 	bytes_sent += payload.size()
 	if is_host():
 		GDSync.call_func_unreliable(_on_packet, payload)

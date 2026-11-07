@@ -25,9 +25,18 @@ var _ping_stamp := -1
 var _peer_present := false
 var _saved_cast_mode := ""
 var _game: Node
+var _netdebug := false
+var _debug_started_ms := 0
+
+func _debug(event: String, details: String = "") -> void:
+	if _netdebug:
+		print("[NET %dms] session %s%s" % [Time.get_ticks_msec() - _debug_started_ms, event, (" " + details) if not details.is_empty() else ""])
 
 func _ready() -> void:
 	_game = get_node("/root/Game")
+	if OS.has_feature("web"):
+		_netdebug = bool(JavaScriptBridge.eval("new URLSearchParams(window.location.search).get('netdebug') === '1'"))
+	_debug_started_ms = Time.get_ticks_msec()
 
 func use_transport(value: NetTransport) -> void:
 	leave()
@@ -52,6 +61,7 @@ func prepare_online() -> void:
 		use_transport(load(script).new())
 
 func host(options: Dictionary) -> void:
+	_debug("host requested")
 	if transport == null:
 		prepare_online()
 	_reset_for_attempt()
@@ -63,6 +73,7 @@ func host(options: Dictionary) -> void:
 	state_changed.emit()
 
 func join(code: String, player_name: String = "") -> void:
+	_debug("join requested", "code=" + code)
 	if transport == null:
 		prepare_online()
 	_reset_for_attempt()
@@ -76,10 +87,12 @@ func is_host() -> bool:
 	return transport != null and transport.is_host()
 
 func _connected() -> void:
+	_debug("transport connected", "code=" + transport.room_code)
 	room_code = transport.room_code
 	state_changed.emit()
 
 func _peer_joined() -> void:
+	_debug("peer_joined")
 	_peer_present = true
 	_silence_seconds = 0.0
 	if not is_host():
@@ -87,6 +100,8 @@ func _peer_joined() -> void:
 
 func _receive(msg: Dictionary) -> void:
 	var kind := str(msg.get("type", ""))
+	if kind in ["hello", "welcome"]:
+		_debug("message received", "type=" + kind)
 	if kind == "bye":
 		_disconnect("Your opponent left the match.")
 		return
@@ -133,6 +148,7 @@ func _receive(msg: Dictionary) -> void:
 		_: message_received.emit(msg)
 
 func begin_match() -> void:
+	_debug("match started", "host=" + str(is_host()))
 	if transport != null:
 		transport.set_match_state("in_match")
 	_set_state(State.IN_MATCH, "In match")
@@ -195,6 +211,7 @@ func _reset_for_attempt() -> void:
 func _disconnect(reason: String) -> void:
 	if state == State.DISCONNECTED:
 		return
+	_debug("timeout/disconnect", reason)
 	leave()
 	_set_state(State.DISCONNECTED, reason)
 	disconnected.emit(reason)

@@ -9,8 +9,19 @@ var _lobbies: VBoxContainer
 var _actions: HBoxContainer
 var _host_buttons: Array[Button] = []
 var _join_button: Button
+var _netdebug := false
+var _debug_started_ms := 0
+var _last_debug_status := ""
+
+func _debug(event: String, details: String = "") -> void:
+	if _netdebug:
+		print("[NET %dms] online_screen %s%s" % [Time.get_ticks_msec() - _debug_started_ms, event, (" " + details) if not details.is_empty() else ""])
 
 func _ready() -> void:
+	if OS.has_feature("web"):
+		_netdebug = bool(JavaScriptBridge.eval("new URLSearchParams(window.location.search).get('netdebug') === '1'"))
+	_debug_started_ms = Time.get_ticks_msec()
+	_debug("ready")
 	set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT)
 	add_child(Backdrop.new())
 	var center := CenterContainer.new()
@@ -84,6 +95,9 @@ func _process(_delta: float) -> void:
 	_join_button.disabled = busy
 	if not ready and NetSession.state == OnlineSession.State.IDLE:
 		_status.text = "Connecting to server…"
+	if _status.text != _last_debug_status:
+		_last_debug_status = _status.text
+		_debug("status", _status.text.replace("\n", " | "))
 
 func _join(code: String) -> void:
 	var normalized := code.strip_edges().to_upper()
@@ -91,6 +105,7 @@ func _join(code: String) -> void:
 	if normalized.is_empty():
 		_status.text = "Enter a room code."
 		return
+	_debug("join pressed", "code=" + normalized)
 	NetSession.join(normalized, Game.player_name)
 
 func _refresh() -> void:
