@@ -57,6 +57,8 @@ try {
   await click(pages[0], 639, 482);
   await click(pages[1], 639, 482);
   await screenshot('online');
+  const hostConnectTime = await waitFor(() => consoleLogs.A.some(x => x.includes('transport connected signal')), 'host GD-Sync connection');
+  const joinConnectTime = await waitFor(() => consoleLogs.B.some(x => x.includes('transport connected signal')), 'joiner GD-Sync connection');
   await click(pages[0], 541, 315);
   const codeTime = await waitFor(() => consoleLogs.A.some(line => /lobby_create.*code=([A-Z2-9]{5})/.test(line)), 'host room code');
   const codeLine = consoleLogs.A.find(line => /lobby_create.*code=([A-Z2-9]{5})/.test(line));
@@ -67,7 +69,7 @@ try {
   const matchTime = await waitFor(() => consoleLogs.A.some(x => x.includes('session match started')) && consoleLogs.B.some(x => x.includes('session match started')), 'both match starts');
   result = 'pass';
   await screenshot('match');
-  console.log(JSON.stringify({ result, code, connectAndHostMs: codeTime - start, matchMs: matchTime - start }));
+  console.log(JSON.stringify({ result, code, connectHostMs: hostConnectTime - start, connectJoinMs: joinConnectTime - start, hostCodeMs: codeTime - hostConnectTime, matchMs: matchTime - start }));
 } catch (error) {
   await screenshot('failure').catch(() => {});
   console.error(error.stack || error);
