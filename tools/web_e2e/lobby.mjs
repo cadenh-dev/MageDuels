@@ -11,14 +11,13 @@ const value = (name, fallback) => {
 };
 const baseUrl = value('--url', 'http://127.0.0.1:8790/index.html');
 const headed = args.includes('--headed');
-const runs = Math.min(8, Math.max(1, Number(value('--runs', '1'))));
 const output = path.join(here, 'output');
 await fs.mkdir(output, { recursive: true });
 
 const browser = await chromium.launch({
   channel: 'chrome',
   headless: !headed,
-  args: ['--use-gl=swiftshader', '--enable-unsafe-swiftshader', '--disable-background-timer-throttling', '--disable-renderer-backgrounding'],
+  args: ['--use-gl=swiftshader', '--enable-unsafe-swiftshader'],
 });
 const consoleLogs = { A: [], B: [] };
 const contexts = await Promise.all(['A', 'B'].map(() => browser.newContext({ viewport: { width: 1280, height: 800 } })));
@@ -59,10 +58,13 @@ try {
   await screenshot('online');
   const hostConnectTime = await waitFor(() => consoleLogs.A.some(x => x.includes('transport connected signal')), 'host GD-Sync connection');
   const joinConnectTime = await waitFor(() => consoleLogs.B.some(x => x.includes('transport connected signal')), 'joiner GD-Sync connection');
+  await pages[0].bringToFront();
   await click(pages[0], 541, 315);
   const codeTime = await waitFor(() => consoleLogs.A.some(line => /lobby_create.*code=([A-Z2-9]{5})/.test(line)), 'host room code');
   const codeLine = consoleLogs.A.find(line => /lobby_create.*code=([A-Z2-9]{5})/.test(line));
   const code = codeLine.match(/lobby_create.*code=([A-Z2-9]{5})/)[1];
+  // Leave the host page in the background while the second isolated context joins.
+  await pages[1].bringToFront();
   await pages[1].mouse.click(595, 375);
   await pages[1].keyboard.type(code, { delay: 90 });
   await click(pages[1], 917, 375);
