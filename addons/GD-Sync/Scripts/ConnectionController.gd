@@ -64,6 +64,8 @@ var _session_crypto_ready : bool = false
 
 var artificial_latency_ms : int = 0
 var _unreliable_throttle_ready : bool = false
+var _shiftcast_netdebug : bool = false
+var _shiftcast_connect_started_ms : int = 0
 
 const _LB_TIMEOUT_MS : int = 10000
 const _LB_MAX_ATTEMPTS : int = 3
@@ -92,6 +94,8 @@ func _ready() -> void:
 	local_server = GDSync._local_server
 	logger = GDSync._logger
 	is_web_export = OS.has_feature("web")
+	if is_web_export:
+		_shiftcast_netdebug = bool(JavaScriptBridge.eval("new URLSearchParams(window.location.search).get('netdebug') === '1'"))
 	
 	var keys : Dictionary = KeyStore.load_keys()
 	_PUBLIC_KEY = keys["PublicKey"]
@@ -168,6 +172,8 @@ func start_multiplayer() -> void:
 	
 	reset_multiplayer()
 	var gen : int = _connect_generation
+	_shiftcast_connect_started_ms = Time.get_ticks_msec()
+	_shiftcast_debug("start", "web=" + str(is_web_export))
 	last_poll = Time.get_unix_time_from_system()
 	
 	if is_web_export:
@@ -177,6 +183,12 @@ func start_multiplayer() -> void:
 
 func _connect_is_current(gen : int) -> bool:
 	return gen == _connect_generation
+
+# SHIFTCAST patch: stage timings are opt-in and help separate relay discovery
+# from HTTPS load-balancer and WebSocket/authentication latency in web builds.
+func _shiftcast_debug(stage : String, details : String = "") -> void:
+	if _shiftcast_netdebug:
+		print("[NET %dms] gdsync %s%s" % [Time.get_ticks_msec() - _shiftcast_connect_started_ms, stage, (" " + details) if not details.is_empty() else ""])
 
 func _fail_connect(gen : int, error : int, message : String) -> void:
 	if !_connect_is_current(gen):
@@ -234,11 +246,13 @@ func _new_web_socket() -> WebSocketPeer:
 	return peer
 
 func _start_web_connect(gen : int) -> void:
+	_shiftcast_debug("web discovery started")
 	client = _new_web_socket()
 	status = ENUMS.CONNECTION_STATUS.PINGING_SERVERS
 	var lb_state : Dictionary = { "done": false, "invalid_key": false }
 	_resolve_lb_for_web(gen, lb_state)
 	var ranked : Array = await _rank_web_servers(gen)
+	_shiftcast_debug("web server ranking finished", "count=" + str(ranked.size()))
 	if !_connect_is_current(gen):
 		return
 	if ranked.is_empty():
@@ -252,6 +266,7 @@ func _start_web_connect(gen : int) -> void:
 			return
 		await get_tree().create_timer(0.05).timeout
 		waited_ms += 50
+	_shiftcast_debug("load balancer finished", "wait_ms=" + str(waited_ms) + " invalid_key=" + str(lb_state.invalid_key))
 	if !_connect_is_current(gen):
 		return
 	if lb_state.invalid_key:
@@ -266,7 +281,9 @@ func _start_web_connect(gen : int) -> void:
 		client.close()
 		client = _new_web_socket()
 		web_hub_host = host
+		_shiftcast_debug("websocket attempt", host)
 		if await _try_connect("wss://"+host, gen, _CONNECT_TIMEOUT_S):
+			_shiftcast_debug("connection secured", host)
 			return
 	_fail_connect(gen, ENUMS.CONNECTION_FAILED.TIMEOUT, "Connection timeout, server did not respond.")
 
@@ -370,6 +387,7 @@ func _query_load_balancer(
 	inflight : Array,
 	on_done : Callable
 ) -> void:
+	var request_started_ms := Time.get_ticks_msec()
 	logger.write_log("Requesting servers from "+address)
 	var request : HTTPRequest = HTTPRequest.new()
 	request.timeout = _LB_TIMEOUT_MS / 1000.0
@@ -397,6 +415,7 @@ func _query_load_balancer(
 		return
 	
 	var response_code : int = completed[1]
+	_shiftcast_debug("load balancer response", address + " code=" + str(response_code) + " ms=" + str(Time.get_ticks_msec() - request_started_ms))
 	logger.write_log("Load balancer completed. <"+address+"><"+str(response_code)+">")
 	if response_code == 401:
 		if !winner.taken:
@@ -585,15 +604,20 @@ func _rank_web_servers(gen : int) -> Array:
 		_ping_web_server(host, server_pings, gen, func(): tasks_done += 1)
 	
 	var waited_ms : int = 0
-	while tasks_done < total and waited_ms < 4500:
+	# SHIFTCAST patch: web ping requests run in parallel; cap discovery delay to
+	# 1.25s so unreachable optional hubs cannot hold up load-balancer startup.
+	while tasks_done < total and waited_ms < 1250:
 		if !_connect_is_current(gen):
 			return []
 		await get_tree().create_timer(0.05).timeout
 		waited_ms += 50
 	
 	if !_connect_is_current(gen) or server_pings.is_empty():
-		logger.write_error("No HTTPS pings received from web servers.")
-		return []
+		_shiftcast_debug("web ping ranking timed out", "wait_ms=" + str(waited_ms) + " completed=" + str(tasks_done) + "/" + str(total))
+		# A failed optional /ping endpoint does not prove the secure websocket is
+		# unavailable. Try the configured hubs in their existing order.
+		logger.write_error("No HTTPS pings received from web servers; trying configured hubs.")
+		return web_servers.duplicate()
 	
 	var pings : Array = server_pings.keys()
 	pings.sort()
@@ -602,6 +626,7 @@ func _rank_web_servers(gen : int) -> Array:
 		ranked.append(server_pings[ping])
 		logger.write_log("Web server ping. <"+str(server_pings[ping])+"><"+str(ping)+"ms>")
 	logger.write_log("Best web server selected. <"+str(ranked[0])+"><"+str(pings[0])+"ms>")
+	_shiftcast_debug("web ping ranking", "wait_ms=" + str(waited_ms) + " completed=" + str(tasks_done) + "/" + str(total))
 	return ranked
 
 func _ping_web_server(host : String, server_pings : Dictionary, gen : int, on_done : Callable) -> void:

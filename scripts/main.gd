@@ -226,6 +226,13 @@ func show_menu() -> void:
 	menu.how_pressed.connect(menu.show_how)
 	menu.quit_pressed.connect(func() -> void: get_tree().quit())
 	_swap_screen(menu)
+	NetSession.warm_online()
+	_disconnect_warmed_relay_after_idle()
+
+func _disconnect_warmed_relay_after_idle() -> void:
+	await get_tree().create_timer(300.0, true, false, true).timeout
+	if current_screen is MenuScreen and NetSession.state == OnlineSession.State.IDLE:
+		NetSession.leave()
 
 
 func show_online() -> void:
@@ -474,6 +481,9 @@ func _wait_probe(condition: Callable, timeout_ms: int) -> bool:
 
 
 func _on_play_pressed() -> void:
+	# Single-player matches do not need a relay connection warmed by the menu.
+	if OS.has_feature("web") and NetSession.transport is GDSyncTransport:
+		NetSession.leave()
 	start_match()
 
 

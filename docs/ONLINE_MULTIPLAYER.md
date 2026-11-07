@@ -10,8 +10,17 @@ use compact fixed point values and are compressed before relay transport.
 
 The BSD licensed GD-Sync 1.0.2 addon is vendored in `addons/GD-Sync/` and enabled
 as a plugin and `GDSync` autoload in `project.godot`. It connects only when the
-Online screen opens. The Web export uses the addon's `WebSocketPeer` secure WebSocket
-path.
+Web main menu is shown, so relay discovery can overlap the player's time in the
+menu. The connection is stopped after five minutes if the player remains idle
+there, and it is stopped when a single-player match starts. Online hosts and
+joiners reuse the warm connection. The Web export uses the addon's
+`WebSocketPeer` secure WebSocket path. During startup the Online screen reports
+"Contacting relay…" or "Securing connection…" while the relay is not ready.
+
+The vendored BSD-2 addon has two documented local changes in
+`ConnectionController.gd`: opt-in `?netdebug=1` stage timing logs, and a 1.25 s
+cap on parallel web server pings. If both optional ping endpoints fail, the
+connection tries the configured hubs in order instead of failing discovery.
 
 The key helper reads the two local key files and writes the ConfigFile expected by
 GD-Sync's `KeyStore`:

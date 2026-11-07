@@ -66,6 +66,10 @@ func _ensure_connected() -> void:
 		_debug("start_multiplayer called")
 		GDSync.start_multiplayer()
 
+func warm_up() -> void:
+	if not backend_ready:
+		_ensure_connected()
+
 func host(options: Dictionary) -> void:
 	_prepare_lobby_request()
 	_hosting = true

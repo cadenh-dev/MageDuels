@@ -60,6 +60,14 @@ func prepare_online() -> void:
 		var script := "res://scripts/net/enet_transport.gd" if use_enet else "res://scripts/net/gdsync_transport.gd"
 		use_transport(load(script).new())
 
+func warm_online() -> void:
+	# Only normal Web/menu play warms the relay. Headless test paths retain their
+	# existing lazy transport selection and never consume relay quota.
+	if OS.has_feature("web"):
+		prepare_online()
+		if transport is GDSyncTransport:
+			(transport as GDSyncTransport).warm_up()
+
 func host(options: Dictionary) -> void:
 	_debug("host requested")
 	if transport == null:

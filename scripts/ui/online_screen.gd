@@ -94,7 +94,9 @@ func _process(_delta: float) -> void:
 		button.disabled = not ready or busy
 	_join_button.disabled = busy
 	if not ready and NetSession.state == OnlineSession.State.IDLE:
-		_status.text = "Connecting to server…"
+		var controller: Object = GDSync.get("_connection_controller")
+		var connection_status := int(controller.get("status")) if controller != null else -1
+		_status.text = "Securing connection…" if connection_status >= 3 else "Contacting relay…"
 	if _status.text != _last_debug_status:
 		_last_debug_status = _status.text
 		_debug("status", _status.text.replace("\n", " | "))
