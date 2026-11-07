@@ -77,7 +77,7 @@ func _ready() -> void:
 
 func _process(_delta: float) -> void:
 	var transport := NetSession.transport
-	var ready := not (transport is GDSyncTransport) or (transport as GDSyncTransport).backend_ready
+	var ready := not (transport is GDSyncTransport) or (transport as GDSyncTransport).backend_ready or NetSession.state == OnlineSession.State.DISCONNECTED
 	var busy := NetSession.state in [OnlineSession.State.JOINING, OnlineSession.State.HOSTING_WAITING, OnlineSession.State.IN_LOBBY, OnlineSession.State.IN_MATCH]
 	for button in _host_buttons:
 		button.disabled = not ready or busy
