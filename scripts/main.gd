@@ -37,7 +37,7 @@ func _ready() -> void:
 	var args := OS.get_cmdline_user_args()
 	for arg_i in args.size():
 		if args[arg_i] == "--cast-mode" and arg_i + 1 < args.size():
-			Game.set_cast_mode(str(args[arg_i + 1]))
+			Game.cast_mode = Game.CAST_CLASSIC if str(args[arg_i + 1]).to_lower() == Game.CAST_CLASSIC else Game.CAST_CHANT
 	if "--audio-selftest" in args or "--voice-selftest" in args:
 		Audio.prepare()
 		await Audio.run_selftest()
