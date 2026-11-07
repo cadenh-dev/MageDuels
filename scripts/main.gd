@@ -660,7 +660,14 @@ func _debug_shot(mode: String) -> void:
 			_build_duel()
 			player.input_enabled = true
 			ai.active = false
-			player.begin_chant(0, true)
+			player.begin_chant(0, false)
+			var shot_spell: SpellDef = player.current_spell(0)
+			if shot_spell != null:
+				var compact := shot_spell.incantation_compact()
+				var type_len := mini(compact.length() - 1, maxi(1, compact.length() * 2 / 3))
+				for ci in type_len:
+					player.chant_key(compact.substr(ci, 1))
+					await _wait(0.07)
 		"--shot-shield":
 			Game.reset_match("ai")
 			_build_duel()
@@ -687,6 +694,8 @@ func _debug_shot(mode: String) -> void:
 		await _wait(0.22)
 	if mode == "--shot-chant":
 		await _wait(1.0)
+	if mode == "--shot-assist":
+		await _wait(0.35)
 	await _capture(mode.replace("--shot-", ""))
 
 
