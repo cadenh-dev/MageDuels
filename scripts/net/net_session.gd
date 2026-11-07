@@ -54,6 +54,7 @@ func prepare_online() -> void:
 func host(options: Dictionary) -> void:
 	if transport == null:
 		prepare_online()
+	_reset_for_attempt()
 	local_name = str(options.get("host_name", str(_game.player_name))).strip_edges().left(24)
 	cast_mode = str(options.get("cast_mode", _game.cast_mode))
 	_set_state(State.HOSTING_WAITING, "Waiting for an opponent")
@@ -64,6 +65,7 @@ func host(options: Dictionary) -> void:
 func join(code: String, player_name: String = "") -> void:
 	if transport == null:
 		prepare_online()
+	_reset_for_attempt()
 	local_name = (str(_game.player_name) if player_name.is_empty() else player_name).strip_edges().left(24)
 	room_code = code
 	_silence_seconds = 0.0
@@ -179,6 +181,16 @@ func leave() -> void:
 		_game.cast_mode = _saved_cast_mode
 		_saved_cast_mode = ""
 	_set_state(State.IDLE, "")
+
+func _reset_for_attempt() -> void:
+	_peer_present = false
+	_silence_seconds = 0.0
+	_waiting_for_resume = false
+	room_code = ""
+	rtt_ms = 0
+	if not _saved_cast_mode.is_empty():
+		_game.cast_mode = _saved_cast_mode
+		_saved_cast_mode = ""
 
 func _disconnect(reason: String) -> void:
 	if state == State.DISCONNECTED:

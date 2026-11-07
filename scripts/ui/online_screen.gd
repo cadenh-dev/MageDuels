@@ -34,7 +34,6 @@ func _ready() -> void:
 		var button := UIKit.button("HOST PUBLIC" if public else "HOST PRIVATE", 18)
 		button.name = "HostPublicButton" if public else "HostPrivateButton"
 		button.pressed.connect(func() -> void:
-			NetSession.leave()
 			NetSession.host({"public": public, "host_name": Game.player_name, "cast_mode": Game.cast_mode})
 		)
 		_actions.add_child(button)
@@ -91,7 +90,6 @@ func _join(code: String) -> void:
 	if normalized.is_empty():
 		_status.text = "Enter a room code."
 		return
-	NetSession.leave()
 	NetSession.join(normalized, Game.player_name)
 
 func _refresh() -> void:
