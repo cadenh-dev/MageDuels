@@ -368,6 +368,8 @@ func _run_gdsync_duel(hosting: bool) -> void:
 	var sent := transport.bytes_sent - sent_start
 	print("GDSYNC DUEL %s: sent=%d B (%.1f B/s), received=%d B, RTT=%d ms, phase=%s, duration=%.1f s" % ["HOST" if hosting else "JOIN", sent, float(sent) * 1000.0 / elapsed_ms, transport.bytes_received, NetSession.rtt_ms, online_match.phase if is_instance_valid(online_match) else "ended", float(elapsed_ms) / 1000.0])
 	NetSession.leave()
+	if FileAccess.file_exists(code_path):
+		DirAccess.remove_absolute(ProjectSettings.globalize_path(code_path))
 	get_tree().quit(0)
 
 func _wait_probe(condition: Callable, timeout_ms: int) -> bool:
