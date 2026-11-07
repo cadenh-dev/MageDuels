@@ -5,6 +5,8 @@ extends NetTransport
 const ENUMS := preload("res://addons/GD-Sync/Scripts/Enums/Enums.gd")
 const CODE_ALPHABET := "ABCDEFGHJKMNPQRSTUVWXYZ23456789"
 const PROTOCOL := OnlineSession.PROTOCOL
+const CONNECT_TIMEOUT_MS := 25000
+const LOBBY_TIMEOUT_MS := 12000
 
 var _bound := false
 var _hosting := false
@@ -122,9 +124,15 @@ func _prepare_lobby_request() -> void:
 
 func _on_connected() -> void:
 	_debug("connected signal")
+	if not GDSync.is_active():
+		_debug("stale connected ignored", "plugin is inactive")
+		return
 	_attempt_stage = ""
 	_starting = false
 	backend_ready = true
+	var controller: Object = GDSync.get("_connection_controller")
+	if controller != null and controller.get("is_web_export"):
+		_debug("relay connected", "hub=" + str(controller.get("web_hub_host")))
 	if _connection_ready:
 		return
 	_connection_ready = true
@@ -198,7 +206,8 @@ func _on_lobby_join_failed(name: String, error: int) -> void:
 		failed.emit(_lobby_join_error(error))
 
 func _process(_delta: float) -> void:
-	if _attempt_stage.is_empty() or Time.get_ticks_msec() - _attempt_started_ms < 12000:
+	var timeout_ms := CONNECT_TIMEOUT_MS if _attempt_stage == "connection" else LOBBY_TIMEOUT_MS
+	if _attempt_stage.is_empty() or Time.get_ticks_msec() - _attempt_started_ms < timeout_ms:
 		return
 	var stage := _attempt_stage
 	_attempt_stage = ""
