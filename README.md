@@ -26,44 +26,97 @@ Made with Godot 4.7.2. Browser-first, procedural art, no external gameplay asset
 |---|---|
 | `WASD` | Move |
 | Mouse | Aim |
-| `1`–`4` | Quickcast the spell in that slot |
-| `Space` | Begin chanting the selected spell |
-| Type + `Enter` | Complete the incantation → **Overcast** |
-| `F` / Right Mouse / `LT` (hold) | **Assisted overcast** — auto-casts after 2.3s, no typing |
+| `1`–`4` | Chant mode: start chanting that slot. Classic mode: quickcast it (×1.0) |
+| `Space` | Classic mode: start chanting the selected slot |
+| Type the rune words | Chant. When the words are typed **and** the charge is done, the spell **primes** on its own (no confirm key) |
+| `Left Click` / `Space` / `RT` | **Release** the primed spell at your aim (`Enter` still works as a silent alias) |
+| `F` / Right Mouse / `LT` (hold) | **Assisted overcast**: hold to charge (rooted), fires on release, no typing |
 | Mouse wheel | Cycle the selected spell slot |
-| `Shift` / `RB` | Swap spell page (A ↔ B) |
+| `Shift` / `RB` | Swap spell page (A ↔ B), also while primed |
 | `C` / `R3` | Toggle follow camera ↔ arena camera |
-| `Esc` / `Start` | Pause / cancel a chant |
+| `Esc` / `Start` | Cancel a chant, discard a primed spell, or pause |
 
-**Gamepad:** left stick moves, right stick aims, `A/B/X/Y` cast slots 1–4, `RB`
-swaps pages, `LT` holds an assisted overcast, `Start` pauses. Menus are navigable
-with the D-pad or left stick and `A`.
+**Gamepad:** left stick moves, right stick aims. In chant mode hold `LB`, pick a
+slot with the stick and let go, then press `A`, `B`, `X` for words 1–3; the spell
+primes when the last word lands and the charge completes, and `RT` releases it.
+`Back` cancels. `RB` swaps pages, `LT` holds an assisted overcast, `Start`
+pauses. Menus are navigable with the D-pad or left stick and `A`.
 
-A chant roots you for at least **1.6 seconds**, costs full mana, deals **×2.4**
-damage, and is **broken by any direct hit**. Typing is the strong, high-skill
-route; the 2.3s assisted hold is the accessible **×1.9** route. Releasing the
-hold in the **gold window (1.6–1.95s)** is a **PERFECT overcast** (+15% damage),
-so the pad has a hard mode as well. If you fumble the incantation but typed at
-least **half** of it, ENTER still fires a **fizzle** at **×0.5** power — full
-mana, so it is a consolation rather than a plan. Every cast is named in the HUD
-and the rune words are spoken by the synthetic voice. The rival follows the same
-rules. **Ward** blocks projectiles; **Aegis** is a personal shield that absorbs
-35 damage for 3s.
+**Chanting** roots you (mouse aim still turns you) and halves mana regen. Every
+rune word uses only left-hand letters (`QWERT ASDFG ZXCVB`), so the right hand
+stays on the mouse. A typo resets the typed text; `Backspace` deletes a letter.
+Charge time is letters ÷ 8 seconds (× the wand's cast speed). A hit of 5+
+damage, an Earth stagger or a Storm jolt breaks the chant; nothing is paid yet.
+
+**Primed:** mana is paid when the spell primes. You then move at full speed and
+aim freely for up to **6 seconds** (mana regen paused) while your wand glows and a
+rune ring floats over you, so the rival can see it coming. Hits do not remove a
+primed spell. After 6 s it fizzles out and the mana is lost. Release with
+`Left Click` / `Space` / `RT` for **×2.4** damage; projectile and beam spells
+**soft-lock** onto the rival if your aim is within 10° and they are in range.
+
+**Early release:** clicking while still chanting fires a **fizzle** right away if
+at least half the letters are typed and the charge is done (×0.5 power, half
+durations, full mana). Under half, nothing happens ("Keep chanting"); only `Esc`
+cancels. The **assisted hold** charges for 2.3 s and fires at ×1.9; releasing in
+the **gold window (1.6–1.95 s)** is a **PERFECT** overcast (+15%). Every cast is
+named in the HUD and the rune words are spoken by the synthetic voice. The rival
+follows the same rules.
 
 ### The runes
 
-Both duelists start with the same Apprentice spellbook. After each round, the
-loser picks a boon first; boons add runes, switch wands, or boost stats, and last
-for the whole match. First to **three** rounds wins.
+Both duelists start with the same Apprentice spellbook (page A: Ember Dart, Ice
+Shard, Stone Wall, Arcane Ray; page B: Ball Lightning, Inferno Ring, Ice Armor,
+Hasty Void Dart). After each round, the loser picks a boon first; boons add
+runes, switch wands, or boost stats, and last for the whole match. First to
+**three** rounds wins.
 
-- **Elements:** Fire, Frost, Storm, Earth, Arcane, Void
-- **Forms:** Bolt, Orb, Beam, Nova, Ward, Aegis
-- **Modifiers:** Split, Heavy, Quick, Pierce, Track
+An incantation is the element word plus the form word (plus an optional
+modifier word), e.g. `ARDE WARD`, `TERRA CETRA` or `FREZA BREXA GRAVE`.
 
-An incantation is the element word plus the form word (plus an optional modifier
-word), e.g. `ARDE DARDE` or `FREZA BREXA GRAVE`. `TRACK` makes every projectile
-curve toward the rival, so `ARDE DARDE SEQA` is a seeking fire bolt. The arena's
-element changes each round and adds +15% damage to matching spells.
+| Element | Word | Form | Word | Modifier | Word |
+|---|---|---|---|---|---|
+| Fire | `ARDE` | Bolt | `DARDE` | Split | `TRES` |
+| Frost | `FREZA` | Orb | `ASTRA` | Heavy | `GRAVE` |
+| Storm | `ZAGRA` | Beam | `RAZE` | Quick | `DEXT` |
+| Earth | `TERRA` | Nova | `BREXA` | Pierce | `WEDGE` |
+| Arcane | `SACRA` | Ward | `WARD` | Track | `SEQA` |
+| Void | `VASTA` | Aegis | `CETRA` | | |
+
+**The form is only a shape** (fast bolt, slow orb, line beam, burst nova, placed
+ward, attached aegis). **The element is the material**, and the material decides
+what is solid, what it leaves behind and how it reacts to other materials:
+
+- **Fire** (flame) is never solid. It burns, leaves burning ground and ignites
+  what passes through it. A Flame Sheet blocks nothing but scorches whoever
+  crosses it, and melts frost.
+- **Frost** (ice) is brittle. It chills (a second chill while chilled freezes
+  you in place for 0.6 s), slows projectiles and shatters into shards. An Ice
+  Wall stops wizards but lets spells through, slowed and weakened.
+- **Storm** (lightning) is instant. Hits jolt (a short stun that breaks chants),
+  arc to nearby targets and bounce off walls.
+- **Earth** (stone) is solid and heavy. It staggers, knocks back hard, smashes
+  ice, and a Stone Wall blocks wizards, projectiles and beams until its HP runs
+  out.
+- **Arcane** (force) is weightless. It burns mana, phases through solid walls
+  and reflects: a Mirror Ward sends enemy spells back at their caster.
+- **Void** (gravity) pulls instead of pushing, drains health and swallows
+  projectiles: a Rift eats enemy spells and heals you.
+
+| | Bolt | Orb | Beam | Nova | Ward | Aegis |
+|---|---|---|---|---|---|---|
+| **Fire** | Ember Dart | Fireball | Flame Jet | Inferno Ring | Flame Sheet | Heat Aura |
+| **Frost** | Ice Shard | Frost Globe | Freeze Ray | Rime Burst | Ice Wall | Ice Armor |
+| **Storm** | Spark | Ball Lightning | Chain Lance | Thunderclap | Tesla Fence | Static Shell |
+| **Earth** | Stone Bolt | Boulder | Fault Line | Quake | Stone Wall | Stoneskin |
+| **Arcane** | Arcane Missile | Mana Sphere | Arcane Ray | Repulse | Mirror Ward | Mana Shield |
+| **Void** | Void Dart | Singularity | Siphon | Implosion | Rift | Void Shroud |
+
+A modifier adds its prefix to the name ("Heavy Inferno Ring", "Seeking Ember
+Dart"). `SEQA` (Track) makes projectiles home in, Boulder and Ball Lightning
+included; `WEDGE` (Pierce) passes one target or one wall. The arena's element
+changes each round and adds +15% damage to matching spells. The full rules for
+every cell are in [`design/SPELLCRAFT.md`](design/SPELLCRAFT.md).
 
 ---
 
@@ -76,12 +129,13 @@ Requires **Godot 4.7.2** (GL Compatibility renderer).
 godot --path .
 
 # Headless checks
+godot --headless --path . -- --spellcraft  # all 36 cells, ward order, statuses, scaling
 godot --headless --path . -- --test      # spell math, wall/beam/nova, interrupts
 godot --headless --path . -- --flow      # 3 rounds + drafts -> match end -> rematch
 godot --headless --path . -- --lifetime  # 10 duel rebuilds, orphan check
 godot --headless --path . -- --ai        # rival telegraph, completion, interrupt
 godot --headless --path . -- --input     # unicode typing, assist/perfect, controller maps
-godot --headless --path . -- --balance   # all wand x rune stat combinations
+godot --headless --path . -- --balance   # all wand x rune combinations + cell value outliers
 godot --headless --path . -- --audio-selftest
 godot --path . -- --fps                  # rendered FPS benchmark (720p/1080p/vsync)
 godot --headless --path . res://scenes/NetTest.tscn  # 2-client sync spike

@@ -36,31 +36,44 @@ Shift your spellbook. Shift your feet. Shift the duel.
 
 ### Controls
 
+Casting follows `design/SPELLCRAFT.md` section 2 (type to prime, release to
+fire). Rune words use only left-hand letters.
+
 | Input | Action |
 |---|---|
 | WASD | Move (arcade, camera-relative) |
 | Mouse | Aim |
-| 1–4 | Quickcast spell in that slot (weak, full cost) |
-| Space | Begin chanting the last-selected spell |
-| Type + Enter | Complete the incantation → Overcast |
-| F / RMB / LT (hold) | Assisted overcast — 2.3s, no typing, ×1.9 damage |
+| 1–4 | Chant mode: start chanting that slot. Classic: quickcast (×1.0) |
+| Space | Classic: start chanting the selected slot |
+| Type the rune words | Chant; the spell **auto-primes** once typed and charged (no confirm key) |
+| Left Click / Space / RT | Release the primed spell (Enter is a silent alias) |
+| F / RMB / LT (hold) | Assisted overcast: hold to charge, fires on release, ×1.9 |
 | Mouse wheel | Cycle selected spell slot |
-| Shift / RB | Swap spell page |
+| Shift / RB | Swap spell page (allowed while primed) |
 | C / R3 | Toggle camera |
-| Esc / Start | Pause |
+| Esc / Start | Cancel chant, discard primed spell, or pause |
 
-**Gamepad:** left stick move, right stick aim, face buttons cast, `LT` assisted
-overcast, `RB` swap, `Start` pause. Menus navigate with D-pad/stick + `A`.
-Releasing `LT` in the 1.6–1.95s gold window is a PERFECT overcast (+15% damage).
+**Gamepad (chant mode):** hold `LB`, pick a slot with the stick, let go; `A`,
+`B`, `X` enter words 1–3. The spell primes when the last word lands and the
+charge completes; move with the left stick, aim with the right, release with
+`RT`. `Back` cancels. Releasing `LT` in the 1.6–1.95 s gold window is a PERFECT
+assisted overcast (+15%).
 
-While chanting you are **rooted**. Movement and quickcast are locked until the
-incantation completes or is cancelled. A typed chant needs 1.6s of hold time and
-is **interrupted by direct damage**, so it is a wager, not a discount. Typing is
-the stronger path (×2.4); the 2.3s assisted hold is the accessible ×1.9
-alternative. A failed typed incantation still fires a **fizzle** at ×0.5 damage
-if at least half of the runes were typed (full mana); below half it
-cancels. Every cast also announces its spell name in the HUD and speaks its
-rune words through the synthetic voice.
+**Chanting** roots you (mouse aim still turns you) and halves mana regen. Charge
+time is letters ÷ 8 s × the wand's cast speed (classic Space-chant keeps the
+1.6 s minimum). A hit of 5+ damage, a stagger or a jolt breaks the chant;
+nothing has been paid.
+
+**Primed:** mana is paid at priming ("Not enough mana" collapses the chant).
+You move at full speed and aim freely for at most 6 s, regen paused, with a
+visible wand glow and rune ring. Hits do not remove it. Release fires at ×2.4
+with a 10° **soft-lock** for bolts, orbs and beams. At 6 s it fizzles out and
+the mana is lost. While primed you cannot start another chant.
+
+**Early release:** Left Click / Space while still chanting fires a **fizzle**
+(×0.5 power, half durations, full mana) if at least half the letters are typed
+and the charge is done; below half nothing happens ("Keep chanting") and only
+Esc cancels.
 
 ### Runes
 
@@ -68,12 +81,12 @@ rune words through the synthetic voice.
 
 | Rune | Word | Effect |
 |---|---|---|
-| Fire | ARDE | Burn: 6 damage over 3s |
-| Frost | FREZA | Chill: 40% slow for 2s |
-| Storm | ZAGRA | Chain: 50% damage to a nearby second target |
-| Earth | TERRA | Knockback and a brief stagger |
-| Arcane | SACRA | Mana burn: steals 12 mana |
-| Void | VASTA | Lifedrain: heals 25% of damage dealt |
+| Fire | ARDE | Burn 6 over 3s; never solid; leaves burning ground |
+| Frost | FREZA | Chill: 40% slow for 2s; a second chill freezes (0.6 s root) |
+| Storm | ZAGRA | Jolt: 0.25 s stun that breaks chants; arcs and bounces |
+| Earth | TERRA | Stagger 0.35 s and heavy knockback; solid, smashes ice |
+| Arcane | SACRA | Mana burn 12; phases through solid walls; reflects |
+| Void | VASTA | Drain 25%; pulls instead of pushing; absorbs projectiles |
 
 **Forms** (6)
 
@@ -83,18 +96,23 @@ rune words through the synthetic voice.
 | Orb | ASTRA | Slow homing projectile |
 | Beam | RAZE | Instant ray |
 | Nova | BREXA | Point-blank area burst |
-| Wall | WARD | Temporary barrier |
-| Aegis | CETRA | Personal shield: 35 damage / 3s |
+| Ward | WARD | Placed barrier segment; the element decides what it blocks |
+| Aegis | CETRA | Attached to the caster; the element decides what it does |
 
 **Modifiers** (5)
 
 | Modifier | Word | Effect |
 |---|---|---|
 | Split | TRES | Three projectiles, 62% damage each |
-| Heavy | GRAVE | +45% damage, slower, more knockback |
+| Heavy | GRAVE | +45% damage, wall HP, shield absorb and zone dps; slower, more knockback |
 | Quick | DEXT | Faster, cheaper mana, -18% damage |
-| Pierce | WEDGE | Passes through one target |
-| Track | SEQA | Every projectile homes toward the rival |
+| Pierce | WEDGE | Passes one target or one wall |
+| Track | SEQA | Projectiles home toward the rival (Boulder, Ball Lightning, Singularity too) |
+
+The form is only a shape; the element is the material. Each of the 36
+element x form cells (Ember Dart, Flame Sheet, Stone Wall, Mirror Ward, Void
+Shroud, ...) is specified in `design/SPELLCRAFT.md` section 3, including the
+cross-material order for projectiles meeting wards.
 
 Incantation = element word + form word + optional modifier word, e.g.
 `ARDE DARDE`, `FREZA BREXA`, `TERRA DARDE GRAVE`, `ARDE DARDE SEQA`
