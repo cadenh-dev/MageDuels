@@ -6,7 +6,7 @@ extends Node
 var ELEMENTS: Dictionary = {
 	"fire": {
 		"name": "Fire",
-		"word": "IGNA",
+		"word": "ARDE",
 		"adj": "Ember",
 		"color": Color("ff6b35"),
 		"damage_mult": 1.0,
@@ -15,7 +15,7 @@ var ELEMENTS: Dictionary = {
 	},
 	"frost": {
 		"name": "Frost",
-		"word": "GLACIA",
+		"word": "FREZA",
 		"adj": "Frost",
 		"color": Color("74dcff"),
 		"damage_mult": 0.95,
@@ -24,7 +24,7 @@ var ELEMENTS: Dictionary = {
 	},
 	"storm": {
 		"name": "Storm",
-		"word": "VOLTA",
+		"word": "ZAGRA",
 		"adj": "Storm",
 		"color": Color("ffe066"),
 		"damage_mult": 0.9,
@@ -42,7 +42,7 @@ var ELEMENTS: Dictionary = {
 	},
 	"arcane": {
 		"name": "Arcane",
-		"word": "ARCANA",
+		"word": "SACRA",
 		"adj": "Arcane",
 		"color": Color("c084fc"),
 		"damage_mult": 1.0,
@@ -51,7 +51,7 @@ var ELEMENTS: Dictionary = {
 	},
 	"void": {
 		"name": "Void",
-		"word": "VANA",
+		"word": "VASTA",
 		"adj": "Void",
 		"color": Color("ff4d9d"),
 		"damage_mult": 0.9,
@@ -63,7 +63,7 @@ var ELEMENTS: Dictionary = {
 var FORMS: Dictionary = {
 	"bolt": {
 		"name": "Bolt",
-		"word": "MITT",
+		"word": "DARDE",
 		"kind": "projectile",
 		"damage": 10.0,
 		"mana": 11.0,
@@ -74,7 +74,7 @@ var FORMS: Dictionary = {
 	},
 	"orb": {
 		"name": "Orb",
-		"word": "QUAERO",
+		"word": "ASTRA",
 		"kind": "projectile",
 		"damage": 13.0,
 		"mana": 16.0,
@@ -86,7 +86,7 @@ var FORMS: Dictionary = {
 	},
 	"beam": {
 		"name": "Beam",
-		"word": "RADIA",
+		"word": "RAZE",
 		"kind": "beam",
 		"damage": 17.0,
 		"mana": 22.0,
@@ -97,7 +97,7 @@ var FORMS: Dictionary = {
 	},
 	"nova": {
 		"name": "Nova",
-		"word": "RUPTA",
+		"word": "BREXA",
 		"kind": "nova",
 		"damage": 15.0,
 		"mana": 26.0,
@@ -108,7 +108,7 @@ var FORMS: Dictionary = {
 	},
 	"wall": {
 		"name": "Ward",
-		"word": "MURUS",
+		"word": "WARD",
 		"kind": "wall",
 		"damage": 0.0,
 		"mana": 20.0,
@@ -118,7 +118,7 @@ var FORMS: Dictionary = {
 	},
 	"aegis": {
 		"name": "Aegis",
-		"word": "TUTELA",
+		"word": "CETRA",
 		"kind": "shield",
 		"damage": 0.0,
 		"mana": 24.0,
@@ -138,7 +138,7 @@ var MODIFIERS: Dictionary = {
 	},
 	"split": {
 		"name": "Split",
-		"word": "TRIA",
+		"word": "TRES",
 		"prefix": "Triple",
 		"damage_mult": 0.62,
 		"cost_mult": 1.35,
@@ -148,7 +148,7 @@ var MODIFIERS: Dictionary = {
 	},
 	"heavy": {
 		"name": "Heavy",
-		"word": "GRAVIS",
+		"word": "GRAVE",
 		"prefix": "Heavy",
 		"damage_mult": 1.45,
 		"speed_mult": 0.7,
@@ -158,7 +158,7 @@ var MODIFIERS: Dictionary = {
 	},
 	"quick": {
 		"name": "Quick",
-		"word": "CITUS",
+		"word": "DEXT",
 		"prefix": "Hasty",
 		"damage_mult": 0.82,
 		"speed_mult": 1.5,
@@ -167,7 +167,7 @@ var MODIFIERS: Dictionary = {
 	},
 	"pierce": {
 		"name": "Pierce",
-		"word": "PUNGO",
+		"word": "WEDGE",
 		"prefix": "Piercing",
 		"damage_mult": 0.9,
 		"cost_mult": 1.1,
@@ -176,7 +176,7 @@ var MODIFIERS: Dictionary = {
 	},
 	"track": {
 		"name": "Track",
-		"word": "SEQUI",
+		"word": "SEQA",
 		"prefix": "Seeking",
 		"damage_mult": 0.9,
 		"cost_mult": 1.15,
@@ -192,7 +192,7 @@ var WANDS: Dictionary = {
 		"name": "Emberwood",
 		"affinity": "fire",
 		"affinity_bonus": 0.15,
-		"damage_mult": 1.05,
+		"damage_mult": 1.10,
 		"cast_time_mult": 1.0,
 		"speed_mult": 1.0,
 		"mana_max": 95.0,
@@ -200,7 +200,7 @@ var WANDS: Dictionary = {
 		"hp": 100.0,
 		"move_speed": 5.6,
 		"color": Color("ff7a45"),
-		"blurb": "Aggressive. Fire spells hit 30% harder.",
+		"blurb": "Aggressive. All spells +10%; fire spells +25%.",
 	},
 	"frostglass": {
 		"name": "Frostglass",
@@ -270,7 +270,7 @@ var CARDS: Array = [
 	{"id": "haste", "name": "Haste", "desc": "+10% cast speed", "kind": "cast", "amount": 0.10, "color": Color("ffe066")},
 	{"id": "swiftness", "name": "Swiftness", "desc": "+8% move speed", "kind": "speed", "amount": 0.08, "color": Color("a78bfa")},
 	{"id": "barrier", "name": "Barrier", "desc": "Start each round with 20 shield", "kind": "shield", "amount": 20.0, "color": Color("8fe7ff")},
-	{"id": "wand_ember", "name": "Emberwood", "desc": "Switch wand: fire affinity, +30% fire damage", "kind": "wand", "wand_id": "emberwood", "color": Color("ff6b35")},
+	{"id": "wand_ember", "name": "Emberwood", "desc": "Switch wand: fire affinity, +25% fire damage", "kind": "wand", "wand_id": "emberwood", "color": Color("ff6b35")},
 	{"id": "wand_frost", "name": "Frostglass", "desc": "Switch wand: frost affinity, +35 max mana", "kind": "wand", "wand_id": "frostglass", "color": Color("74dcff")},
 	{"id": "wand_storm", "name": "Stormbone", "desc": "Switch wand: storm affinity, 22% faster casts", "kind": "wand", "wand_id": "stormbone", "color": Color("ffe066")},
 	{"id": "wand_void", "name": "Voidheart", "desc": "Switch wand: void affinity, lifedrain spells", "kind": "wand", "wand_id": "voidheart", "color": Color("ff4d9d")},

@@ -68,36 +68,36 @@ rune words through the synthetic voice.
 
 | Rune | Word | Effect |
 |---|---|---|
-| Fire | IGNA | Burn: 6 damage over 3s |
-| Frost | GLACIA | Chill: 40% slow for 2s |
-| Storm | VOLTA | Chain: 50% damage to a nearby second target |
+| Fire | ARDE | Burn: 6 damage over 3s |
+| Frost | FREZA | Chill: 40% slow for 2s |
+| Storm | ZAGRA | Chain: 50% damage to a nearby second target |
 | Earth | TERRA | Knockback and a brief stagger |
-| Arcane | ARCANA | Mana burn: steals 12 mana |
-| Void | VANA | Lifedrain: heals 25% of damage dealt |
+| Arcane | SACRA | Mana burn: steals 12 mana |
+| Void | VASTA | Lifedrain: heals 25% of damage dealt |
 
 **Forms** (6)
 
 | Form | Word | Behaviour |
 |---|---|---|
-| Bolt | MITT | Fast projectile |
-| Orb | QUAERO | Slow homing projectile |
-| Beam | RADIA | Instant ray |
-| Nova | RUPTA | Point-blank area burst |
-| Wall | MURUS | Temporary barrier |
-| Aegis | TUTELA | Personal shield: 35 damage / 3s |
+| Bolt | DARDE | Fast projectile |
+| Orb | ASTRA | Slow homing projectile |
+| Beam | RAZE | Instant ray |
+| Nova | BREXA | Point-blank area burst |
+| Wall | WARD | Temporary barrier |
+| Aegis | CETRA | Personal shield: 35 damage / 3s |
 
 **Modifiers** (5)
 
 | Modifier | Word | Effect |
 |---|---|---|
-| Split | TRIA | Three projectiles, 62% damage each |
-| Heavy | GRAVIS | +45% damage, slower, more knockback |
-| Quick | CITUS | Faster, cheaper mana, -18% damage |
-| Pierce | PUNGO | Passes through one target |
-| Track | SEQUI | Every projectile homes toward the rival |
+| Split | TRES | Three projectiles, 62% damage each |
+| Heavy | GRAVE | +45% damage, slower, more knockback |
+| Quick | DEXT | Faster, cheaper mana, -18% damage |
+| Pierce | WEDGE | Passes through one target |
+| Track | SEQA | Every projectile homes toward the rival |
 
 Incantation = element word + form word + optional modifier word, e.g.
-`IGNA MITT`, `GLACIA RUPTA`, `TERRA MITT GRAVIS`, `IGNA MITT SEQUI`
+`ARDE DARDE`, `FREZA BREXA`, `TERRA DARDE GRAVE`, `ARDE DARDE SEQA`
 (Fire + Track: seeking bolts).
 
 ### Wands

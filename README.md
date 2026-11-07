@@ -61,8 +61,8 @@ for the whole match. First to **three** rounds wins.
 - **Modifiers:** Split, Heavy, Quick, Pierce, Track
 
 An incantation is the element word plus the form word (plus an optional modifier
-word), e.g. `IGNA MITT` or `GLACIA RUPTA GRAVIS`. `TRACK` makes every projectile
-curve toward the rival, so `IGNA MITT SEQUI` is a seeking fire bolt. The arena's
+word), e.g. `ARDE DARDE` or `FREZA BREXA GRAVE`. `TRACK` makes every projectile
+curve toward the rival, so `ARDE DARDE SEQA` is a seeking fire bolt. The arena's
 element changes each round and adds +15% damage to matching spells.
 
 ---

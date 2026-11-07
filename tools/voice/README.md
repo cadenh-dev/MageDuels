@@ -72,3 +72,5 @@ https://tyc.rei-yumesaki.net/material/utau/
 Vocaloid is proprietary and each voicebank has its own license. OpenUTAU + a
 free-material UTAU voicebank gives a legally clear, offline, reproducible path
 with no runtime dependency in the Godot build.
+
+> The kana table below refers to the old rune words. It is retained as a historical voice-mapping reference and has not been re-derived for the new words.

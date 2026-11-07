@@ -66,7 +66,7 @@ var _voice_bytes := 0
 var _voice_bake_ms := 0
 var _rival_chanting := false
 
-## Baked per-word callouts ("IGNA", "MITT") played in sequence on cast.
+## Baked per-word callouts ("ARDE", "DARDE") played in sequence on cast.
 var _callouts: Dictionary = {}
 var _callout_player: AudioStreamPlayer
 var _callout_queue: Array[AudioStreamWAV] = []

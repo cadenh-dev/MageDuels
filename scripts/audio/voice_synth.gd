@@ -100,7 +100,7 @@ static func bake_callouts(words: Array) -> Dictionary:
 
 ## Render a rune word as a short, chant-like utterance. It is not English
 ## speech: each vowel group becomes a formant-shaped syllable, and consonant
-## clusters become the existing noise onset. Enough to voice "IGNA MITT" as a
+## clusters become the existing noise onset. Enough to voice "ARDE DARDE" as a
 ## recognisable cast callout without shipping samples.
 static func _speak_word(profile: Dictionary, word: String) -> AudioStreamWAV:
 	var chunks := _syllables(word)
@@ -138,7 +138,7 @@ static func _syllables(word: String) -> Array[String]:
 			while j < n and _is_vowel(word.substr(j, 1)):
 				current += word.substr(j, 1)
 				j += 1
-			# Absorb up to two coda consonants so a word like MITT stays one
+			# Absorb up to two coda consonants so a word like DARDE stays one
 			# syllable instead of ending on a bare, vowel-less fragment.
 			var k := j
 			var coda := 0

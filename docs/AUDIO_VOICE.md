@@ -93,8 +93,8 @@ Ladder contour: A minor pentatonic over 12 rungs. Player A2 → A4
 using a rough syllabifier: each vowel group takes its F1/F2/F3 shape, the
 preceding consonant cluster becomes the existing noise onset, and pitch steps
 down 10% per syllable. This is deliberately a **sung rune-language callout**, not
-English text-to-speech; it is there so a cast audibly announces `IGNA MITT` or
-`GLACIA RUPTA` instead of sounding like every other bolt. Only the player profile
+English text-to-speech; it is there so a cast audibly announces `ARDE DARDE` or
+`FREZA BREXA` instead of sounding like every other bolt. Only the player profile
 is baked; the rival replays the same streams at `pitch_scale = 0.8`.
 
 ---
