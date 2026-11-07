@@ -15,6 +15,7 @@ var _ui := false
 func _ready() -> void:
 	_port = 27000 + OS.get_process_id() % 12000
 	Game.cast_mode = Game.CAST_CHANT
+	_gdsync_retry_checks()
 	await _mismatch()
 	await _scenario(false)
 	await _scenario(true)
@@ -44,7 +45,19 @@ func _mismatch() -> void:
 	await _until(func() -> bool: return client_session.state == OnlineSession.State.DISCONNECTED, "protocol mismatch rejects guest")
 	_check("mismatch reason is explicit", "version mismatch" in client_session.status)
 	await _until(func() -> bool: return host_session.state == OnlineSession.State.DISCONNECTED, "mismatch closes host lobby")
+	var host_wire := host_session.transport as ENetTransport
+	_check("protocol mismatch closes the host transport", host_wire.peer == null)
+	host_session.host({"port": _port, "host_name": "Host", "cast_mode": "chant", "public": true})
+	client_session.protocol_version = OnlineSession.PROTOCOL
+	client_session.join("127.0.0.1:%d" % _port, "Guest")
+	await _until(func() -> bool: return host_session.state == OnlineSession.State.IN_LOBBY and client_session.state == OnlineSession.State.IN_LOBBY, "good hello connects after mismatch re-host")
 	await _cleanup()
+
+func _gdsync_retry_checks() -> void:
+	var collision := GDSyncTransport.ENUMS.LOBBY_CREATION_ERROR.LOBBY_ALREADY_EXISTS
+	var cooldown := GDSyncTransport.ENUMS.LOBBY_CREATION_ERROR.ON_COOLDOWN
+	_check("lobby code collisions retry", GDSyncTransport._create_retry_required(collision))
+	_check("lobby cooldowns retry", GDSyncTransport._create_retry_required(cooldown))
 
 func _make_match(value: OnlineSession) -> OnlineMatch:
 	var viewport := SubViewport.new()
@@ -76,18 +89,55 @@ func _scenario(impaired: bool) -> void:
 	var started_at := Time.get_ticks_msec()
 	_check("names and host cast mode negotiated", host_session.remote_name == "Guest" and client_session.remote_name == "Host" and client_session.cast_mode == "chant")
 	_check("online has no AI nodes", host_match.drivers.size() == 2 and client_match.drivers.is_empty())
+	var guest_wizard := client_match.wizards[1]
+	guest_wizard.selected_slot = 2
+	guest_wizard.chant_elapsed = 0.0
+	var authority := MatchState.wizard(host_match.wizards[1])
+	authority["elapsed"] = 3.25
+	MatchState.apply(guest_wizard, authority, true, true)
+	_check("guest clock follows host while preserving echoed chant", is_equal_approx(guest_wizard.chant_elapsed, 3.25))
+	_check("guest spell selection survives host snapshots", guest_wizard.selected_slot == 2)
+	guest_wizard.selected_slot = 0
+	var saved_phase := client_match.phase
+	var saved_position := guest_wizard.position
+	client_match.phase = "countdown"
+	guest_wizard.input_enabled = false
+	client_match.set_input(Vector2(0, 1), Vector3(-6, 0, 0))
+	client_match._sample_frame(1.0)
+	var countdown_move := client_match._displacements[client_match._frame_seq % OnlineMatch.HISTORY]
+	_check("guest prediction is gated during countdown", countdown_move == Vector3.ZERO)
+	guest_wizard.position = saved_position
+	guest_wizard.input_enabled = true
+	client_match.phase = saved_phase
+	client_match._local_move = Vector2.ZERO
+	client_match._batch_count = 0
 	if _ui:
 		_check("both HUDs show their own wizard as YOU", host_match.hud.player == host_match.wizards[0] and client_match.hud.player == client_match.wizards[1] and client_match.hud.player.wizard_name == "YOU")
 		_check("coach is off online", host_match.hud._coach == null and client_match.hud._coach == null)
+	var saved_silence := client_session._silence_seconds
+	var saved_waiting := client_session._waiting_for_resume
+	client_session._silence_seconds = 9.9
+	client_session._waiting_for_resume = false
+	client_session._process(10.0) # A resumed browser can report one very large frame.
+	_check("large resume delta does not disconnect", client_session.state == OnlineSession.State.IN_MATCH)
+	client_session._process(0.2)
+	_check("silent peer shows inactive waiting state", client_session.status == "Opponent's tab is inactive / waiting…" and client_session.state == OnlineSession.State.IN_MATCH)
+	if _ui:
+		_check("inactive waiting state appears in the match HUD", client_match.hud._toast.text == "WAITING FOR OPPONENT")
+	client_session._silence_seconds = saved_silence
+	client_session._waiting_for_resume = saved_waiting
+	client_session.status = "In match"
 	var lobbies := await host_session.transport.list_public_lobbies()
 	_check("public listing carries lobby metadata", lobbies.size() == 1 and lobbies[0]["players"] == 2 and lobbies[0]["cast_mode"] == "chant")
 	await _until(func() -> bool: return client_session.rtt_ms > 0, "RTT measured")
 	var start := host_match.wizards[1].position
+	var received_frame := host_match.drivers[1].last_frame
 	client_match.set_input(Vector2(0, 1), Vector3(-6, 0, 0))
 	await _wait(0.5)
 	client_match.set_input(Vector2.ZERO, Vector3(-6, 0, 0))
 	await _wait(0.7)
 	_check("client movement reaches real host wizard", host_match.wizards[1].position.distance_to(start) > 1.0)
+	_check("host receives guest movement frames", host_match.drivers[1].last_frame > received_frame)
 	_check("client prediction converges to host", host_match.wizards[1].position.distance_to(client_match.wizards[1].position) < 0.3)
 	host_match.set_input(Vector2(0, -1), host_match.wizards[1].position)
 	await _wait(0.5)
@@ -105,6 +155,18 @@ func _scenario(impaired: bool) -> void:
 	for c in word:
 		client_match.command("chant_char", {"c": c})
 	_check("typing echoes before a round trip", client_match.wizards[1].chant_text == word)
+	await _until(func() -> bool: return host_match.wizards[1].chant_text == word, "host receives the full chant")
+	var rejection_count := client_match.received_cast_rejections
+	client_match.command("unleash")
+	await _until(func() -> bool: return client_match.received_cast_rejections > rejection_count, "early cast rejection reaches guest")
+	_check("early rejected chant remains active", host_match.wizards[1].chanting and client_match.wizards[1].chanting)
+	var remote := host_match.wizards[1]
+	var old_elapsed := remote.chant_elapsed
+	var grace := float(host_session.rtt_ms) / 2000.0 + 0.05
+	remote.chant_elapsed = remote.typed_charge_time() - grace * 0.5
+	_check("unleash inside network grace is queued", host_match._queue_early_unleash({"action": "unleash", "seq": 999}))
+	host_match._queued_unleash.clear()
+	remote.chant_elapsed = old_elapsed
 	await _wait(1.8)
 	client_match.command("unleash")
 	await _until(func() -> bool: return host_match.wizards[0].hp < before, "remote chant produces host-side damaging cast")
