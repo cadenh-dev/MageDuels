@@ -30,6 +30,7 @@ var server_tick := 0
 var snapshot_tick := -1
 var last_event_ack := 0
 var received_casts := 0
+var received_cast_rejections := 0
 var last_cast: Dictionary = {}
 var _event_seq := 0
 var _remote_event_seq := 0
@@ -47,6 +48,8 @@ var _entities: Dictionary = {}
 var _known_entities: Dictionary = {}
 var _beam_seq := 0
 var _closed := false
+var _queued_unleash: Dictionary = {}
+var _last_session_status := ""
 
 func _ready() -> void:
 	# Snapshot ACKs describe inputs already consumed by Wizard physics.
@@ -57,6 +60,8 @@ func setup(value: OnlineSession) -> void:
 	local_index = 0 if session.is_host() else 1
 	session.message_received.connect(_receive)
 	session.disconnected.connect(_disconnected)
+	session.state_changed.connect(_session_status_changed)
+	_last_session_status = session.status
 	_displacements.resize(HISTORY)
 	if show_ui:
 		screens = CanvasLayer.new()
@@ -83,6 +88,7 @@ func _start_round() -> void:
 
 func _build_round() -> void:
 	_clear_round()
+	_queued_unleash.clear()
 	_clear_screen()
 	paused = false
 	_frame_seq = 0
@@ -112,6 +118,8 @@ func _build_round() -> void:
 			w.cast_fired.connect(_cast)
 			w.died.connect(_death)
 			w.damaged.connect(_damaged)
+			if i == 1:
+				w.cast_blocked.connect(_remote_cast_blocked)
 		else:
 			w.set_physics_process(false)
 	wizards[0].set_aim_world(wizards[1].global_position)
@@ -157,6 +165,7 @@ func _physics_process(delta: float) -> void:
 		_sample_frame(delta)
 		if session.is_host():
 			_stall += delta
+			_process_queued_unleash()
 			if _stall > 20.0:
 				var victim := wizards[0] if wizards[0].hp / wizards[0].max_hp <= wizards[1].hp / wizards[1].max_hp else wizards[1]
 				victim.take_damage(9999.0, "arcane", Vector3.ZERO, 0.0)
@@ -203,7 +212,7 @@ func _sample_frame(delta: float) -> void:
 	else:
 		var w := wizards[1]
 		var displacement := Vector3.ZERO
-		if not w.chanting and w.stun_time <= 0.0 and w.alive:
+		if phase == "duel" and w.input_enabled and not w.chanting and w.stun_time <= 0.0 and w.alive:
 			displacement = Vector3(_local_move.x, 0.0, _local_move.y) * w.move_speed * (1.0 - w.slow_amount if w.slow_time > 0.0 else 1.0) * delta
 		_displacements[_frame_seq % HISTORY] = displacement
 		w.velocity = displacement / delta
@@ -250,7 +259,45 @@ func _action(index: int, msg: Dictionary) -> void:
 					_new_match()
 		_:
 			if phase == "duel":
+				if index == 1 and action == "unleash" and _queue_early_unleash(msg):
+					return
 				drivers[index].event(msg)
+
+func _queue_early_unleash(msg: Dictionary) -> bool:
+	var w := wizards[1]
+	if not w.chanting:
+		return false
+	var remaining := w.assist_charge_time() if w.assisted_chant else w.typed_charge_time()
+	remaining -= w.chant_elapsed
+	var grace := float(session.rtt_ms) / 2000.0 + 0.05
+	if remaining <= 0.0 or remaining > grace or not _queued_unleash.is_empty():
+		return false
+	_queued_unleash = msg.duplicate(true)
+	return true
+
+func _process_queued_unleash() -> void:
+	if _queued_unleash.is_empty() or wizards.size() < 2:
+		return
+	var w := wizards[1]
+	var required := w.assist_charge_time() if w.assisted_chant else w.typed_charge_time()
+	if not w.chanting or w.chant_elapsed >= required:
+		var msg := _queued_unleash
+		_queued_unleash = {}
+		RemoteInputDriver.apply(w, msg)
+
+func _remote_cast_blocked(w: Wizard, reason: String) -> void:
+	if wizards.size() > 1 and wizards[1] == w:
+		session.send_reliable({"type": "cast_rejected", "epoch": epoch, "reason": reason.left(160)})
+
+func _session_status_changed() -> void:
+	var current := session.status
+	if current == _last_session_status:
+		return
+	if current == "Opponent's tab is inactive / waiting…" and hud != null:
+		hud.announce("WAITING FOR OPPONENT", current, UIKit.MUTED, 10.0)
+	elif _last_session_status == "Opponent's tab is inactive / waiting…" and hud != null:
+		hud.announce("CONNECTION RESTORED", "Your opponent is active again.", UIKit.GOLD, 1.5)
+	_last_session_status = current
 
 func _receive(msg: Dictionary) -> void:
 	if _closed:
@@ -287,6 +334,10 @@ func _receive(msg: Dictionary) -> void:
 	if int(msg.get("epoch", -1)) != epoch:
 		return
 	match kind:
+		"cast_rejected":
+			received_cast_rejections += 1
+			if hud != null:
+				hud.announce("NOT READY", str(msg.get("reason", "The spell is not ready.")), UIKit.DANGER, 1.0)
 		"countdown":
 			phase = "countdown"
 		"fight": _set_duel()
@@ -461,7 +512,7 @@ func _snapshot(msg: Dictionary) -> void:
 	if _snapshots.size() > 16:
 		_snapshots.pop_front()
 	for i in 2:
-		MatchState.apply(wizards[i], msg["w"][i], i == 1 and last_event_ack < _event_seq)
+		MatchState.apply(wizards[i], msg["w"][i], i == 1 and last_event_ack < _event_seq, i == local_index)
 	var target: Vector3 = msg["w"][1]["pos"]
 	var ack := int(msg["ack"])
 	if _frame_seq - ack < HISTORY:
@@ -509,8 +560,6 @@ func _present(delta: float) -> void:
 	local.move_and_collide(correction)
 	_correction -= correction
 	_clamp_position(local)
-	if local.chanting:
-		local.chant_elapsed += delta
 	if not _snapshots.is_empty():
 		var target := Time.get_ticks_msec() - INTERPOLATION_MS
 		var a: Dictionary = _snapshots[0]

@@ -69,7 +69,7 @@ static func wizard_unwire(row: Array) -> Dictionary:
 		"slow_amount": float(row[20]) / 1000.0, "stun": float(row[21]) / 100.0,
 		"text": str(row[22])}
 
-static func apply(w: Wizard, data: Dictionary, preserve_echo: bool = false) -> void:
+static func apply(w: Wizard, data: Dictionary, preserve_echo: bool = false, preserve_selection: bool = false) -> void:
 	var chant_changed := w.chanting != bool(data["chant"]) or w.chant_text != str(data["text"])
 	w.hp = float(data["hp"])
 	w.mana = float(data["mana"])
@@ -83,13 +83,14 @@ static func apply(w: Wizard, data: Dictionary, preserve_echo: bool = false) -> v
 	w.slow_time = float(data["slow"])
 	w.slow_amount = float(data["slow_amount"])
 	w.stun_time = float(data["stun"])
+	w.chant_elapsed = float(data["elapsed"])
 	if not preserve_echo or not w.alive:
 		w.page = int(data["page"])
-		w.selected_slot = int(data["slot"])
+		if not preserve_selection:
+			w.selected_slot = int(data["slot"])
 		w.chanting = bool(data["chant"])
 		w.chant_slot = int(data["cs"])
 		w.chant_text = str(data["text"])
-		w.chant_elapsed = float(data["elapsed"])
 		w.chant_best = int(data["best"])
 		w.chant_typos = int(data["typos"])
 		w.assisted_chant = bool(data["assist"])
