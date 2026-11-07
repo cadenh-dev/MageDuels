@@ -199,6 +199,11 @@ func _on_lobby_joined(name: String) -> void:
 	_debug("lobby_joined", "name=" + name)
 	if name != room_code and name != _requested_code:
 		return
+	# GD-Sync reports the reservation join again after its lobby transition.
+	# Ignore that repeat so game-level connected handlers run only once.
+	if _in_lobby and room_code == name:
+		_debug("duplicate lobby_joined ignored", "name=" + name)
+		return
 	room_code = name
 	_attempt_stage = ""
 	_in_lobby = true

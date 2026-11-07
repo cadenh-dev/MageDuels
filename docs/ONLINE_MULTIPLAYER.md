@@ -21,6 +21,8 @@ The vendored BSD-2 addon has two documented local changes in
 `ConnectionController.gd`: opt-in `?netdebug=1` stage timing logs, and a 1.25 s
 cap on parallel web server pings. If both optional ping endpoints fail, the
 connection tries the configured hubs in order instead of failing discovery.
+The adapter ignores duplicate `lobby_joined` events for its current room so
+they cannot emit duplicate game-level lobby transitions.
 
 The key helper reads the two local key files and writes the ConfigFile expected by
 GD-Sync's `KeyStore`:
