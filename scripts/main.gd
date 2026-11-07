@@ -97,6 +97,12 @@ func _ready() -> void:
 		var ai_code: int = await ai_test.run(self)
 		get_tree().quit(ai_code)
 		return
+	if "--spellcraft" in args:
+		var spellcraft := SpellcraftTest.new()
+		add_child(spellcraft)
+		var spellcraft_code: int = await spellcraft.run(self)
+		get_tree().quit(spellcraft_code)
+		return
 	if "--balance" in args:
 		var balance := BalanceTest.new()
 		add_child(balance)
