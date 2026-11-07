@@ -26,3 +26,7 @@ graphify-out/
 
 # UTAU voicebank source samples (do not redistribute; see tools/voice/README.md)
 tools/voice/voicebank/
+
+# Local AI tooling (editor-only Godot MCP plugin, OpenCode config)
+addons/godot_mcp/
+opencode.json
