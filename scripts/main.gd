@@ -784,6 +784,10 @@ func _unhandled_input(event: InputEvent) -> void:
 	# Start remains available during CHANT_ONLY controller chants. Back is a
 	# dedicated cancel button so all four face buttons remain for word entry.
 	var chant_pad_pause := Game.cast_mode == Game.CAST_CHANT and event is InputEventJoypadButton
+	if player != null and is_instance_valid(player) and player.primed_slot >= 0 and event.is_action_pressed("pause"):
+		player.discard_primed()
+		get_viewport().set_input_as_handled()
+		return
 	if event.is_action_pressed("pause") and (player == null or not is_instance_valid(player) or not player.chanting or chant_pad_pause):
 		if duel_active:
 			_toggle_pause()
@@ -806,6 +810,10 @@ func _unhandled_input(event: InputEvent) -> void:
 			return
 
 	if player != null and is_instance_valid(player) and player.chanting and duel_active and not is_paused:
+		if event.is_action_pressed("cast_mouse") or event.is_action_pressed("chant") or event.is_action_pressed("confirm"):
+			player.chant_finish()
+			get_viewport().set_input_as_handled()
+			return
 		if event is InputEventJoypadButton and event.is_pressed():
 			var face := event as InputEventJoypadButton
 			if face.button_index == JOY_BUTTON_BACK and player.controller_chant:
@@ -841,6 +849,15 @@ func _unhandled_input(event: InputEvent) -> void:
 								player.chant_key(ch)
 				get_viewport().set_input_as_handled()
 		return
+	if player != null and is_instance_valid(player) and player.primed_slot >= 0 and duel_active and not is_paused:
+		if event.is_action_pressed("release") or event.is_action_pressed("cast_mouse") or event.is_action_pressed("chant") or event.is_action_pressed("confirm"):
+			player.release_primed()
+			get_viewport().set_input_as_handled()
+			return
+		if event.is_action_pressed("pause"):
+			player.discard_primed()
+			get_viewport().set_input_as_handled()
+			return
 	if event is InputEventJoypadButton and Game.cast_mode == Game.CAST_CHANT:
 		if event.button_index in [JOY_BUTTON_A, JOY_BUTTON_B, JOY_BUTTON_X, JOY_BUTTON_Y]:
 			get_viewport().set_input_as_handled()
@@ -881,6 +898,9 @@ func _unhandled_input(event: InputEvent) -> void:
 
 
 func _cast_input(slot: int) -> void:
+	if player.primed_slot >= 0:
+		player.cast_blocked.emit(player, "Release your primed spell first.")
+		return
 	if Game.cast_mode == Game.CAST_CHANT:
 		player.begin_chant(slot)
 	else:

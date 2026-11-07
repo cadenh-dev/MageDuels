@@ -57,14 +57,15 @@ func run(p_main: Node) -> int:
 		return _finish()
 	_check("chant roots the rival", main.enemy.velocity.length() < 0.5, "vel=%.2f" % main.enemy.velocity.length())
 
-	var completed := await _until(func() -> bool: return not main.enemy.chanting, 7.0, "rival completes or drops chant")
+	var completed := await _until(func() -> bool: return main.enemy.primed_slot >= 0, 7.0, "rival primes spell after chant")
 	_check("chant resolves", completed)
 	if Game.cast_mode == Game.CAST_CHANT:
+		await _until(func() -> bool: return main.enemy.primed_slot < 0 and _observed_cast_duration >= 0.0, 2.0, "rival moves and releases primed spell")
 		var spell: SpellDef = main.enemy.current_spell(main.enemy.last_cast_slot)
 		var expected_min := float(spell.incantation_compact().length()) * 60.0 / (45.0 * 5.0)
 		_check("chant-only AI waits for simulated typing", _observed_cast_duration >= expected_min,
 			"duration=%.2fs min=%.2fs" % [_observed_cast_duration, expected_min])
-	_check("recovery window opens", main.ai.state == AIWizard.State.RECOVER or main.ai.state == AIWizard.State.MOVE, "state=%d" % main.ai.state)
+	_check("recovery window opens", main.ai.state in [AIWizard.State.PRIMED, AIWizard.State.RECOVER, AIWizard.State.MOVE], "state=%d" % main.ai.state)
 
 	# Force a second chant and break it with direct damage.
 	main.ai._chant_cooldown = 0.0

@@ -154,8 +154,9 @@ func run() -> int:
 	p.chant_finish()
 	_check("windup blocks instant finish", p.chanting, "still chanting")
 	await _wait(p.typed_charge_time() + 0.1)
+	_check("full chant auto-primes", p.primed_slot == 0 and not p.chanting)
 	var e_hp_before := e.hp
-	p.chant_finish()
+	p.release_primed()
 	var spent := mana_before - p.mana
 	await _wait(0.85)
 	_check("overcast pays full mana", absf(spent - float(spell.base_stats()["mana"])) < 0.2, "spent %.1f" % spent)
@@ -194,7 +195,8 @@ func run() -> int:
 		p.chant_key(fizzle_text.substr(i, 1))
 	await _wait(p.typed_charge_time() + 0.1)
 	p.chant_finish()
-	_check("below half cancels instead", not p.chanting and last_stats.is_empty(), "stats=%s" % str(last_stats))
+	_check("below half keeps chanting", p.chanting and last_stats.is_empty(), "stats=%s" % str(last_stats))
+	p.cancel_chant()
 
 	# --- Chant interrupt --------------------------------------------------
 	p.mana = p.max_mana

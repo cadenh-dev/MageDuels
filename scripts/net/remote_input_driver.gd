@@ -48,21 +48,32 @@ static func apply(w: Wizard, msg: Dictionary, echo: bool = false) -> void:
 		"prepare":
 			if slot >= 0 and slot < 4:
 				if Game.cast_mode == Game.CAST_CHANT or bool(msg.get("chant", false)) or bool(msg.get("assist", false)):
-					w.begin_chant(slot, bool(msg.get("assist", false)))
+					w.begin_chant(slot, bool(msg.get("assist", false)), bool(msg.get("controller", false)))
 				elif not echo:
 					w.quickcast(slot)
 		"chant_char":
 			var c := str(msg.get("c", ""))
 			if c.length() == 1 and c >= "A" and c <= "Z":
 				w.chant_key(c)
+		"chant_word": w.controller_chant_button(int(msg.get("word_index", -1)))
 		"chant_backspace": w.chant_backspace()
-		"chant_cancel": w.cancel_chant()
+		"chant_cancel":
+			if w.primed_slot >= 0:
+				w.discard_primed()
+			else:
+				w.cancel_chant()
 		"unleash":
 			if not echo:
 				if w.assisted_chant:
 					w.assist_release()
 				else:
 					w.chant_finish()
+		"release":
+			var aim: Variant = msg.get("aim", null)
+			if aim is Vector3 and aim.is_finite():
+				w.set_aim_world(aim)
+			if not echo:
+				w.release_primed()
 		"page_swap": w.swap_page()
 
 func _physics_process(delta: float) -> void:

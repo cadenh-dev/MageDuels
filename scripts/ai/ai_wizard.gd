@@ -11,7 +11,7 @@ extends Node
 ##
 ## Behaviour is keyed to the rival's wand, so each fight reads differently.
 
-enum State { MOVE, WINDUP, TYPING, RECOVER }
+enum State { MOVE, WINDUP, TYPING, PRIMED, RECOVER }
 
 const ARCHETYPES := {
 	"apprentice": {
@@ -137,6 +137,8 @@ func _physics_process(delta: float) -> void:
 			_tick_windup(delta)
 		State.TYPING:
 			_tick_typing(delta)
+		State.PRIMED:
+			_tick_primed(delta)
 		State.RECOVER:
 			wizard.set_ai_move(_strafe_move(0.55))
 			if _state_timer <= 0.0:
@@ -221,11 +223,28 @@ func _tick_typing(delta: float) -> void:
 
 	if _typing_index >= incant.length() and wizard.chant_progress() >= 1.0:
 		wizard.chant_finish()
-		if wizard.chanting:
+		if wizard.primed_slot >= 0:
+			state = State.PRIMED
+			_state_timer = randf_range(0.3, 0.8)
+		elif wizard.chanting:
 			# Finish was rejected (rare); try again shortly.
 			_typing_timer = 0.15
 		else:
 			_enter_recover(randf_range(0.4, 0.9))
+
+
+func _tick_primed(_delta: float) -> void:
+	wizard.set_ai_move(_strafe_move(1.0))
+	wizard.set_aim_world(target.global_position + target.velocity * 0.14)
+	var to_target := target.global_position - wizard.get_muzzle_position()
+	to_target.y = 0.0
+	var aim := wizard.get_center_aim_direction()
+	if _state_timer <= 0.0 and aim.angle_to(to_target.normalized()) <= deg_to_rad(10.0):
+		wizard.release_primed()
+		_enter_recover(randf_range(0.4, 0.9))
+	elif wizard.primed_remaining <= 0.15:
+		wizard.release_primed()
+		_enter_recover(0.5)
 
 
 func _enter_recover(seconds: float) -> void:

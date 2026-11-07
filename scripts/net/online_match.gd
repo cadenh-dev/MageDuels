@@ -49,6 +49,8 @@ var _known_entities: Dictionary = {}
 var _beam_seq := 0
 var _closed := false
 var _queued_unleash: Dictionary = {}
+var _chant_wheel_open := false
+var _chant_wheel_slot := 0
 var _last_session_status := ""
 
 func _ready() -> void:
@@ -259,7 +261,7 @@ func _action(index: int, msg: Dictionary) -> void:
 					_new_match()
 		_:
 			if phase == "duel":
-				if index == 1 and action == "unleash" and _queue_early_unleash(msg):
+				if index == 1 and action in ["unleash", "release"] and _queue_early_unleash(msg):
 					return
 				drivers[index].event(msg)
 
@@ -597,26 +599,58 @@ func _clamp_position(w: Wizard) -> void:
 func _unhandled_input(event: InputEvent) -> void:
 	if not controls or phase != "duel" or wizards.is_empty():
 		return
-	if event is InputEventJoypadButton or event is InputEventJoypadMotion:
-		return
 	var w := wizards[local_index]
+	if Game.cast_mode == Game.CAST_CHANT and event.is_action_pressed("chant_wheel"):
+		_chant_wheel_open = true
+		_chant_wheel_slot = w.selected_slot
+		return
+	if Game.cast_mode == Game.CAST_CHANT and _chant_wheel_open and event.is_action_released("chant_wheel"):
+		_chant_wheel_open = false
+		command("prepare", {"slot": _chant_wheel_slot, "chant": true, "controller": true})
+		return
+	if event is InputEventJoypadButton and event.is_pressed() and w.chanting:
+		var button := (event as InputEventJoypadButton).button_index
+		if button == JOY_BUTTON_BACK:
+			command("chant_cancel")
+		else:
+			var word_index := -1
+			match button:
+				JOY_BUTTON_A: word_index = 0
+				JOY_BUTTON_B: word_index = 1
+				JOY_BUTTON_X: word_index = 2
+				JOY_BUTTON_Y: word_index = 3
+			if word_index >= 0:
+				command("chant_word", {"word_index": word_index})
+		get_viewport().set_input_as_handled()
+		return
 	if event is InputEventKey and (event.echo or event.ctrl_pressed or event.meta_pressed):
 		return
 	if event.is_action_released("assist_chant") and w.assisted_chant:
 		command("unleash")
+	elif w.primed_slot >= 0 and event.is_action_pressed("pause"):
+		command("chant_cancel")
 	elif event.is_action_pressed("pause") and (not w.chanting or paused):
 		_toggle_pause()
 	elif paused:
 		return
+	elif w.chanting and (event.is_action_pressed("cast_mouse") or event.is_action_pressed("chant") or event.is_action_pressed("confirm")):
+		command("unleash", {"aim": _local_aim})
 	elif w.chanting and event is InputEventKey and event.pressed:
 		match event.keycode:
-			KEY_ENTER, KEY_KP_ENTER: command("unleash")
+			KEY_ENTER, KEY_KP_ENTER: command("unleash", {"aim": _local_aim})
 			KEY_ESCAPE: command("chant_cancel")
 			KEY_BACKSPACE: command("chant_backspace")
 			_:
 				var c := String.chr(event.unicode).to_upper()
 				if c.length() == 1 and c >= "A" and c <= "Z":
 					command("chant_char", {"c": c})
+	elif w.primed_slot >= 0:
+		if event.is_action_pressed("release") or event.is_action_pressed("cast_mouse") or event.is_action_pressed("chant") or event.is_action_pressed("confirm"):
+			command("release", {"aim": _local_aim})
+		elif event.is_action_pressed("pause"):
+			command("chant_cancel")
+		elif event.is_action_pressed("swap_page"):
+			command("page_swap")
 	elif not w.chanting:
 		if event.is_action_pressed("cast_1"): command("prepare", {"slot": 0})
 		elif event.is_action_pressed("cast_2"): command("prepare", {"slot": 1})

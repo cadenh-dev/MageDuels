@@ -239,6 +239,7 @@ func _install_input_map() -> void:
 	_add_keys("swap_page", [KEY_SHIFT])
 	_add_keys("chant", [KEY_SPACE])
 	_add_keys("confirm", [KEY_ENTER, KEY_KP_ENTER])
+	_add_joy_axis("release", JOY_AXIS_TRIGGER_RIGHT, 1.0)
 	_add_keys("pause", [KEY_ESCAPE])
 	_add_keys("cast_1", [KEY_1])
 	_add_keys("cast_2", [KEY_2])

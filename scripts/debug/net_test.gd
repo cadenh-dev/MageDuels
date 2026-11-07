@@ -163,19 +163,11 @@ func _scenario(impaired: bool) -> void:
 		client_match.command("chant_char", {"c": c})
 	_check("typing echoes before a round trip", client_match.wizards[1].chant_text == word)
 	await _until(func() -> bool: return host_match.wizards[1].chant_text == word, "host receives the full chant")
-	var rejection_count := client_match.received_cast_rejections
-	client_match.command("unleash")
-	await _until(func() -> bool: return client_match.received_cast_rejections > rejection_count, "early cast rejection reaches guest")
-	_check("early rejected chant remains active", host_match.wizards[1].chanting and client_match.wizards[1].chanting)
 	var remote := host_match.wizards[1]
-	var old_elapsed := remote.chant_elapsed
-	var grace := float(host_session.rtt_ms) / 2000.0 + 0.05
-	remote.chant_elapsed = remote.typed_charge_time() - grace * 0.5
-	_check("unleash inside network grace is queued", host_match._queue_early_unleash({"action": "unleash", "seq": 999}))
-	host_match._queued_unleash.clear()
-	remote.chant_elapsed = old_elapsed
-	await _wait(1.8)
-	client_match.command("unleash")
+	await _until(func() -> bool: return remote.primed_slot == 0 and client_match.wizards[1].primed_slot == 0, "primed spell is visible in client snapshot")
+	_check("host primes typed spell", remote.primed_slot == 0 and not remote.chanting)
+	_check("client snapshot carries primed state", client_match.wizards[1].primed_slot == 0 and client_match.wizards[1].primed_remaining > 0.0)
+	client_match.command("release", {"aim": Vector3(-3, 0, 0)})
 	await _until(func() -> bool: return host_match.wizards[0].hp < before, "remote chant produces host-side damaging cast")
 	await _wait(3.2) # Let the authoritative burn finish before comparing exact HP.
 	_check("cast outcome reliably reaches guest", client_match.received_casts == host_match.received_casts and client_match.received_casts > 0)

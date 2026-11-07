@@ -26,6 +26,7 @@ const CHANT_PERFECT_END := 1.95
 ## It becomes a fizzle: half power, full mana.
 const PARTIAL_CAST_RATIO := 0.5
 const PARTIAL_CAST_MULT := 0.5
+const PRIMED_LIMIT := 6.0
 
 var wizard_name := "Wizard"
 var is_player := false
@@ -64,6 +65,9 @@ var controller_word_index := 0
 ## Best correct-prefix length reached this chant, kept across typo resets so a
 ## late slip still leaves the player a weak partial cast.
 var chant_best := 0
+var primed_slot := -1
+var primed_remaining := 0.0
+var _primed_check: Dictionary = {}
 
 var burn_time := 0.0
 var burn_total := 0.0
@@ -505,7 +509,7 @@ func can_cast(slot: int, overcast: bool = false, overcast_mult: float = SpellDef
 
 
 func quickcast(slot: int) -> bool:
-	if chanting or not input_enabled or (is_player and Game.cast_mode == Game.CAST_CHANT):
+	if chanting or primed_slot >= 0 or not input_enabled or (is_player and Game.cast_mode == Game.CAST_CHANT):
 		return false
 	if slot < 0 or slot > 3:
 		return false
@@ -518,7 +522,9 @@ func quickcast(slot: int) -> bool:
 
 
 func begin_chant(slot: int, p_assisted: bool = false, p_controller: bool = false) -> bool:
-	if chanting or not alive or not input_enabled:
+	if chanting or primed_slot >= 0 or not alive or not input_enabled:
+		if primed_slot >= 0:
+			cast_blocked.emit(self, "Release your primed spell first.")
 		return false
 	var mult := SpellDef.ASSIST_OVERCAST_MULT if p_assisted else SpellDef.OVERCAST_MULT
 	var check := can_cast(slot, true, mult)
@@ -621,26 +627,21 @@ func chant_finish() -> void:
 	if spell == null:
 		cancel_chant()
 		return
-	if chant_elapsed < typed_charge_time():
-		cast_blocked.emit(self, "The runes are still forming…")
-		return
 	var full := spell.incantation_compact()
 	if chant_text == full:
-		var check := can_cast(chant_slot, true, SpellDef.OVERCAST_MULT)
-		if not bool(check["ok"]):
-			cast_blocked.emit(self, str(check["reason"]))
-			cancel_chant()
+		if chant_elapsed < typed_charge_time():
 			return
-		_do_cast(chant_slot, true, check)
+		_prime_chant()
 		return
-
 	# A failed incantation still fires if the caster reached at least half of
 	# it. The fizzle is deliberately worse than a quickcast (×0.5 power) and
 	# still pays full mana, so it is a consolation, not a combo.
 	var ratio := chant_accuracy()
 	if ratio < PARTIAL_CAST_RATIO:
-		cast_blocked.emit(self, "The incantation collapses — too few runes.")
-		cancel_chant()
+		cast_blocked.emit(self, "Keep chanting")
+		return
+	if chant_elapsed < typed_charge_time():
+		cast_blocked.emit(self, "The runes are still forming…")
 		return
 	var partial := can_cast(chant_slot, false)
 	if not bool(partial["ok"]):
@@ -656,6 +657,54 @@ func chant_finish() -> void:
 	stats["fizzle_mult"] = PARTIAL_CAST_MULT
 	stats["partial_ratio"] = ratio
 	_do_cast(chant_slot, false, partial)
+
+
+func _prime_chant() -> void:
+	var check := can_cast(chant_slot, true, SpellDef.OVERCAST_MULT)
+	if not bool(check["ok"]):
+		cast_blocked.emit(self, str(check["reason"]))
+		cancel_chant()
+		return
+	_primed_check = check
+	primed_slot = chant_slot
+	primed_remaining = PRIMED_LIMIT
+	mana = maxf(0.0, mana - float(check["stats"]["mana"]))
+	mana_changed.emit(self, mana, max_mana)
+	chanting = false
+	assisted_chant = false
+	controller_chant = false
+	chant_slot = -1
+	chant_text = ""
+	chant_elapsed = 0.0
+	chant_best = 0
+	_set_chant_fx(true)
+	chant_changed.emit(self, false)
+
+
+func release_primed() -> bool:
+	if primed_slot < 0:
+		return false
+	var slot := primed_slot
+	var check := _primed_check
+	primed_slot = -1
+	primed_remaining = 0.0
+	_primed_check = {}
+	_set_chant_fx(false)
+	# Mana was paid when the spell primed.
+	check["stats"]["mana"] = 0.0
+	_do_cast(slot, true, check)
+	return true
+
+
+func discard_primed() -> void:
+	if primed_slot < 0:
+		return
+	primed_slot = -1
+	primed_remaining = 0.0
+	_primed_check = {}
+	_set_chant_fx(false)
+	Fx.burst(get_parent(), global_position + Vector3.UP * 1.3, wand.get("color", Color.WHITE), 10, 2.4, 0.05, 0.25)
+	chant_changed.emit(self, false)
 
 
 ## Best correct-prefix length / full incantation length, kept across typos.
@@ -773,7 +822,7 @@ func _do_cast(slot: int, overcast: bool, check: Dictionary, perfect: bool = fals
 func _tick_timers(delta: float) -> void:
 	_time += 0.0
 	if alive and mana < max_mana:
-		var regen := mana_regen * (0.5 if chanting else 1.0)
+		var regen := mana_regen * (0.5 if chanting else (0.0 if primed_slot >= 0 else 1.0))
 		mana = minf(max_mana, mana + regen * delta)
 		mana_changed.emit(self, mana, max_mana)
 	if _staff_light != null:
@@ -802,8 +851,12 @@ func _tick_timers(delta: float) -> void:
 		chant_elapsed += delta
 		if assisted_chant and chant_text.is_empty() and chant_elapsed >= assist_charge_time():
 			_finish_assisted()
-		elif controller_chant and current_spell(chant_slot) != null and chant_text == current_spell(chant_slot).incantation_compact() and chant_elapsed >= typed_charge_time():
-			chant_finish()
+		elif current_spell(chant_slot) != null and chant_text == current_spell(chant_slot).incantation_compact() and chant_elapsed >= typed_charge_time():
+			_prime_chant()
+	if primed_slot >= 0:
+		primed_remaining -= delta
+		if primed_remaining <= 0.0:
+			discard_primed()
 
 
 # ---- Damage --------------------------------------------------------------
@@ -968,7 +1021,18 @@ func get_aim_direction() -> Vector3:
 	d.y = 0.0
 	if d.length() < 0.01:
 		return Vector3.FORWARD
-	return d.normalized()
+	var direction := d.normalized()
+	if primed_slot >= 0:
+		var spell := current_spell(primed_slot)
+		if spell != null and spell.form in ["bolt", "orb", "beam"]:
+			for rival in get_tree().get_nodes_in_group("wizards"):
+				if rival == self or not rival is Wizard or not rival.alive:
+					continue
+				var to_rival: Vector3 = rival.global_position - origin
+				to_rival.y = 0.0
+				if to_rival.length() <= float(_primed_check["stats"].get("range", 15.0)) and direction.angle_to(to_rival.normalized()) <= deg_to_rad(10.0):
+					return to_rival.normalized()
+	return direction
 
 
 ## Stable direction for the model's facing. Do not derive this from the staff

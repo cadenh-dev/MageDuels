@@ -33,6 +33,7 @@ static func wizard(w: Wizard) -> Dictionary:
 		"elapsed": w.chant_elapsed, "best": w.chant_best, "typos": w.chant_typos,
 		"assist": w.assisted_chant, "progress": w.chant_progress(),
 		"shield": w.shield_hp, "shield_max": w.shield_max,
+		"primed": w.primed_slot, "prime_time": w.primed_remaining,
 		"slow": w.slow_time, "slow_amount": w.slow_amount, "stun": w.stun_time}
 
 ## Compact snapshot row. Coordinates and timers are fixed point, while flags
@@ -51,10 +52,10 @@ static func wizard_wire(w: Wizard) -> Array:
 		w.chant_slot, roundi(w.chant_elapsed * 100.0), w.chant_best, w.chant_typos,
 		roundi(w.chant_progress() * 1000.0), roundi(w.shield_hp * 10.0), roundi(w.shield_max * 10.0),
 		roundi(w.slow_time * 100.0), roundi(w.slow_amount * 1000.0), roundi(w.stun_time * 100.0),
-		w.chant_text]
+		w.chant_text, w.primed_slot, roundi(w.primed_remaining * 100.0)]
 
 static func wizard_unwire(row: Array) -> Dictionary:
-	if row.size() != 23:
+	if row.size() != 25:
 		return {}
 	var flags := int(row[9])
 	return {"pos": Vector3(float(row[0]) / 100.0, 0.0, float(row[1]) / 100.0),
@@ -67,7 +68,7 @@ static func wizard_unwire(row: Array) -> Dictionary:
 		"progress": float(row[16]) / 1000.0, "shield": float(row[17]) / 10.0,
 		"shield_max": float(row[18]) / 10.0, "slow": float(row[19]) / 100.0,
 		"slow_amount": float(row[20]) / 1000.0, "stun": float(row[21]) / 100.0,
-		"text": str(row[22])}
+		"text": str(row[22]), "primed": int(row[23]), "prime_time": float(row[24]) / 100.0}
 
 static func apply(w: Wizard, data: Dictionary, preserve_echo: bool = false, preserve_selection: bool = false) -> void:
 	var chant_changed := w.chanting != bool(data["chant"]) or w.chant_text != str(data["text"])
@@ -83,6 +84,8 @@ static func apply(w: Wizard, data: Dictionary, preserve_echo: bool = false, pres
 	w.slow_time = float(data["slow"])
 	w.slow_amount = float(data["slow_amount"])
 	w.stun_time = float(data["stun"])
+	w.primed_slot = int(data.get("primed", -1))
+	w.primed_remaining = float(data.get("prime_time", 0.0))
 	w.chant_elapsed = float(data["elapsed"])
 	if not preserve_echo or not w.alive:
 		w.page = int(data["page"])
@@ -95,6 +98,8 @@ static func apply(w: Wizard, data: Dictionary, preserve_echo: bool = false, pres
 		w.chant_typos = int(data["typos"])
 		w.assisted_chant = bool(data["assist"])
 		w._set_chant_fx(w.chanting)
+		if w.primed_slot >= 0:
+			w._set_chant_fx(true)
 		var spell := w.current_spell(w.chant_slot)
 		if w.chanting and spell != null:
 			w._chant_label.text = spell.display_name().to_upper()

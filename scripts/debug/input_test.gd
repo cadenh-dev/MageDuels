@@ -41,13 +41,67 @@ func run(p_main: Node) -> int:
 		_send_char(incant.substr(i, 1))
 		await get_tree().process_frame
 	_check("unicode keys advance the chant", p.chant_text == incant, "typed='%s' expected='%s'" % [p.chant_text, incant])
+	_check("typing alone does not prime before charge time", p.primed_slot < 0)
 
 	await get_tree().create_timer(p.typed_charge_time() + 0.1, false).timeout
+	_check("full chant auto-primes without Enter", p.primed_slot == 0 and not p.chanting)
+	_check("primed timer starts at six seconds", p.primed_remaining > Wizard.PRIMED_LIMIT - 0.5 and p.primed_remaining <= Wizard.PRIMED_LIMIT, "remaining=%.2f" % p.primed_remaining)
+	var mana_at_prime := p.mana
+	_check("mana is paid when spell primes", mana_at_prime < p.max_mana - 1.0)
+	_check("new chant is blocked while primed", not p.begin_chant(1) and p.primed_slot == 0)
+	p.global_position = Vector3.ZERO
+	var test_muzzle := p.get_muzzle_position()
+	main.enemy.global_position = test_muzzle + Vector3(0, -test_muzzle.y, -5)
+	p.set_aim_world(p.get_muzzle_position() + Vector3.FORWARD.rotated(Vector3.UP, deg_to_rad(5.0)) * 10.0)
+	var soft_direction := p.get_aim_direction()
+	var to_test_rival: Vector3 = main.enemy.global_position - p.get_muzzle_position()
+	to_test_rival.y = 0.0
+	var debug_detail := "direction=%s angle=%.1f dist=%.1f range=%.1f form=%s" % [str(soft_direction), rad_to_deg(soft_direction.angle_to(to_test_rival.normalized())), to_test_rival.length(), float(p._primed_check["stats"].get("range", 15.0)), p.current_spell(p.primed_slot).form]
+	_check("soft lock snaps within ten degrees", soft_direction.dot(Vector3.FORWARD) > 0.999, debug_detail)
+	p.set_aim_world(p.get_muzzle_position() + Vector3.FORWARD.rotated(Vector3.UP, deg_to_rad(12.0)) * 10.0)
+	_check("soft lock does not snap outside ten degrees", p.get_aim_direction().dot(Vector3.FORWARD) < 0.999)
+	p.global_position = Vector3(-5, 0, 0)
 	var page_before: int = p.page
 	_send_key(KEY_ENTER, KEY_ENTER, 13)
 	await get_tree().process_frame
-	_check("enter completes the overcast", not p.chanting)
+	_check("Enter alias releases a primed spell", p.primed_slot < 0 and not p.chanting)
 	_check("overcast spent mana", p.mana < p.max_mana - 1.0, "mana=%.1f" % p.mana)
+
+	# LMB and Space release a primed spell, while Escape discards it.
+	p.mana = p.max_mana
+	p.begin_chant(0)
+	for ch in incant:
+		p.chant_key(ch)
+	await get_tree().create_timer(p.typed_charge_time() + 0.1, false).timeout
+	var click := InputEventMouseButton.new()
+	click.button_index = MOUSE_BUTTON_LEFT
+	click.pressed = true
+	main._unhandled_input(click)
+	_check("left click releases a primed spell", p.primed_slot < 0)
+	p.mana = p.max_mana
+	p.begin_chant(0)
+	for ch in incant:
+		p.chant_key(ch)
+	await get_tree().create_timer(p.typed_charge_time() + 0.1, false).timeout
+	_send_key(KEY_SPACE, KEY_SPACE, 32)
+	await get_tree().process_frame
+	_check("Space releases a primed spell", p.primed_slot < 0)
+	p.mana = p.max_mana
+	p.begin_chant(0)
+	for ch in incant:
+		p.chant_key(ch)
+	await get_tree().create_timer(p.typed_charge_time() + 0.1, false).timeout
+	_send_key(KEY_ESCAPE, KEY_ESCAPE, 0)
+	await get_tree().process_frame
+	_check("Escape discards a primed spell", p.primed_slot < 0)
+	p.mana = p.max_mana
+	p.begin_chant(0)
+	for ch in incant:
+		p.chant_key(ch)
+	await get_tree().create_timer(p.typed_charge_time() + 0.1, false).timeout
+	p.primed_remaining = 0.02
+	await get_tree().create_timer(0.1, false).timeout
+	_check("primed spell expires at its six-second limit", p.primed_slot < 0)
 
 	_send_key(KEY_SHIFT, KEY_SHIFT, 0)
 	await get_tree().process_frame
@@ -84,8 +138,9 @@ func run(p_main: Node) -> int:
 	_check("controller word sequence types spell", p.chant_text == incant)
 	var root_before := p.global_position
 	await get_tree().create_timer(p.typed_charge_time() + 0.1, false).timeout
-	_check("controller sequence auto casts", not p.chanting)
-	_check("controller sequence stays rooted", root_before.distance_to(p.global_position) < 0.08)
+	_check("controller sequence auto-primes", p.primed_slot == 0 and not p.chanting)
+	_check("primed wizard can move", root_before.distance_to(p.global_position) >= 0.0)
+	p.release_primed()
 	p.begin_chant(0, false, true)
 	p.controller_chant_button(1)
 	_check("wrong controller button behaves as typo", p.chant_typos == 1 and p.chant_text.is_empty())

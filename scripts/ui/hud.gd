@@ -628,13 +628,13 @@ func _refresh_slots() -> void:
 func _update_input_hints() -> void:
 	if _page_label == null or player == null:
 		return
-	var controls := "WASD MOVE  ·  1–4 CAST  ·  SPACE CHANT  ·  F / RMB HOLD  ·  SHIFT PAGE"
+	var controls := "WASD MOVE  ·  1–4 CAST  ·  SPACE CHANT / RELEASE  ·  LMB RELEASE  ·  F / RMB HOLD  ·  SHIFT PAGE"
 	if Game.input_mode == "pad":
-		controls = "LS MOVE  ·  RS AIM  ·  ABXY CAST  ·  LT HOLD  ·  RB PAGE"
+		controls = "LS MOVE  ·  RS AIM  ·  ABXY CAST  ·  RT RELEASE  ·  LT HOLD  ·  RB PAGE"
 	if Game.cast_mode == Game.CAST_CHANT:
-		controls = "WASD MOVE  ·  1–4 PREPARE  ·  TYPE TO CAST  ·  ESC CANCEL  ·  SHIFT PAGE"
+		controls = "WASD MOVE  ·  1–4 PREPARE  ·  TYPE TO AUTO-PRIME  ·  LMB / SPACE RELEASE  ·  ESC CANCEL  ·  SHIFT PAGE"
 		if Game.input_mode == "pad":
-			controls = "LS MOVE  ·  LB WHEEL / RS PICK  ·  RELEASE LB PREPARES  ·  ABXY WORDS  ·  BACK CANCEL / START PAUSE"
+			controls = "LS MOVE  ·  LB WHEEL / RS PICK  ·  RELEASE LB PREPARES  ·  ABXY WORDS  ·  RT RELEASE  ·  BACK CANCEL / START PAUSE"
 	var text := "PAGE %s  ·  %s" % ["A" if player.page == 0 else "B", controls]
 	if _page_label.text != text:
 		_page_label.text = text
@@ -659,7 +659,19 @@ func _update_round_info() -> void:
 
 func _refresh_chant() -> void:
 	var chanting := player != null and player.chanting
-	_chant_panel.visible = chanting
+	var primed := player != null and player.primed_slot >= 0
+	_chant_panel.visible = chanting or primed
+	if primed and not chanting:
+		var primed_spell := player.current_spell(player.primed_slot)
+		if primed_spell == null:
+			return
+		_chant_title.text = "PRIMED  Â·  %s  Ã—%.1f" % [primed_spell.display_name(), SpellDef.OVERCAST_MULT]
+		_chant_title.add_theme_color_override("font_color", UIKit.spell_color(primed_spell))
+		_chant_text.text = "[color=#ffd166]READY[/color]"
+		_chant_hint.text = "LEFT CLICK / SPACE TO RELEASE  Â·  ESC DISCARD"
+		_chant_progress.value = clampf(player.primed_remaining / Wizard.PRIMED_LIMIT, 0.0, 1.0)
+		_chant_zone.visible = false
+		return
 	if not chanting:
 		return
 	var spell := player.current_spell(player.chant_slot)
@@ -684,11 +696,11 @@ func _refresh_chant() -> void:
 		var chant_title := "INCANTATION" if Game.cast_mode == Game.CAST_CHANT else "TYPED OVERCAST"
 		_chant_title.text = "%s  ·  %s  ·  %d%%" % [chant_title, spell.display_name().to_upper(), roundi(player.chant_accuracy() * 100.0)]
 		if Game.cast_mode != Game.CAST_CHANT:
-			_chant_hint.text = "TYPE THE GOLD RUNES  ·  ENTER unleash  ·  ≥50%% = FIZZLE ×0.5  ·  hold %.1fs" % player.typed_charge_time()
+			_chant_hint.text = "TYPE RUNES TO AUTO-PRIME  ·  LMB / SPACE RELEASE  ·  ENTER ALIAS  ·  ≥50%% = FIZZLE ×0.5  ·  hold %.1fs" % player.typed_charge_time()
 		elif player.controller_chant:
 			_chant_hint.text = "A/B/X/Y ENTER WORDS IN ORDER  ·  BACK CANCEL  ·  START PAUSE  ·  hold %.1fs" % player.typed_charge_time()
 		else:
-			_chant_hint.text = "TYPE THE GOLD RUNES  ·  ENTER UNLEASH  ·  ESC CANCEL  ·  ≥50%% = FIZZLE ×0.5  ·  hold %.1fs" % player.typed_charge_time()
+			_chant_hint.text = "TYPE RUNES TO AUTO-PRIME  ·  LMB / SPACE RELEASE  ·  ENTER ALIAS  ·  ESC CANCEL  ·  ≥50%% = FIZZLE ×0.5  ·  hold %.1fs" % player.typed_charge_time()
 		_chant_zone.visible = false
 		var target := spell.incantation()
 		var typed := player.chant_text.length()
