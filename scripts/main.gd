@@ -95,7 +95,7 @@ func _ready() -> void:
 		var code: int = await tester.run()
 		get_tree().quit(code)
 		return
-	for mode in ["--shot-menu", "--shot-wand", "--shot-craft", "--shot-duel", "--shot-chant", "--shot-assist", "--shot-shield", "--shot-draft", "--shot-boot", "--shot-result"]:
+	for mode in ["--shot-menu", "--shot-wand", "--shot-craft", "--shot-duel", "--shot-chant", "--shot-assist", "--shot-shield", "--shot-draft", "--shot-boot", "--shot-result", "--shot-preview"]:
 		if mode in args:
 			await _debug_shot(mode)
 			return
@@ -652,6 +652,7 @@ func _smoke_test() -> void:
 
 
 func _debug_shot(mode: String) -> void:
+	Game.cast_mode = Game.CAST_CHANT
 	Game.player_wand = "emberwood"
 	Game.enemy_wand = "frostglass"
 	Game.player_pages = SpellData.default_pages(Game.player_wand)
@@ -664,36 +665,26 @@ func _debug_shot(mode: String) -> void:
 			show_wand()
 		"--shot-craft":
 			show_craft()
-		"--shot-duel":
-			Game.reset_match("ai")
-			_build_duel()
-			player.input_enabled = true
-			ai.active = false
-		"--shot-chant":
-			Game.reset_match("ai")
-			_build_duel()
-			player.input_enabled = true
-			ai.active = true
-			ai._chant_cooldown = 0.0
-		"--shot-assist":
-			Game.reset_match("ai")
-			_build_duel()
-			player.input_enabled = true
-			ai.active = false
-			player.begin_chant(0, false)
-			var shot_spell: SpellDef = player.current_spell(0)
-			if shot_spell != null:
-				var compact := shot_spell.incantation_compact()
-				var type_len := mini(compact.length() - 1, maxi(1, compact.length() * 2 / 3))
-				for ci in type_len:
-					player.chant_key(compact.substr(ci, 1))
-					await _wait(0.07)
-		"--shot-shield":
-			Game.reset_match("ai")
-			_build_duel()
-			player.input_enabled = true
-			ai.active = false
-			player.add_shield(35.0, 3.0, Color("8fe7ff"))
+		"--shot-duel", "--shot-chant", "--shot-assist", "--shot-shield", "--shot-preview":
+			_debug_shot_setup_duel()
+			if mode == "--shot-chant" or mode == "--shot-preview":
+				ai.active = true
+				ai._chant_cooldown = 0.0
+			elif mode == "--shot-assist":
+				ai.active = true
+				ai._chant_cooldown = 0.0
+				player.begin_chant(0, false)
+				var shot_spell: SpellDef = player.current_spell(0)
+				if shot_spell != null:
+					var compact := shot_spell.incantation_compact()
+					var type_len := mini(compact.length() - 1, maxi(1, compact.length() * 2 / 3))
+					for ci in type_len:
+						player.chant_key(compact.substr(ci, 1))
+						await _wait(0.07)
+			else:
+				ai.active = false
+			if mode == "--shot-shield":
+				player.add_shield(35.0, 3.0, Color("8fe7ff"))
 		"--shot-draft":
 			Game.start_arena()
 			Game.player_score = 1
@@ -707,16 +698,63 @@ func _debug_shot(mode: String) -> void:
 			Game.enemy_score = 1
 			show_results()
 
+	if mode == "--shot-preview":
+		await _wait(0.45)
+		await _capture_preview_animation()
+		return
+
 	await _wait(0.55)
-	if mode == "--shot-duel" and player != null:
-		player.set_aim_world(enemy.global_position)
-		player.quickcast(0)
-		await _wait(0.22)
+	if mode == "--shot-duel":
+		_debug_force_quickcast(enemy, 0)
+		await _wait(0.1)
+		_debug_force_quickcast(player, 1)
+		await _wait(0.35)
 	if mode == "--shot-chant":
+		enemy.begin_chant(2, false)
 		await _wait(1.0)
 	if mode == "--shot-assist":
 		await _wait(0.35)
 	await _capture(mode.replace("--shot-", ""))
+
+
+func _debug_shot_setup_duel() -> void:
+	Game.reset_match("ai")
+	Game.round_index = 1
+	_build_duel()
+	duel_active = true
+	round_running = true
+	player.input_enabled = true
+	player.set_aim_world(enemy.global_position)
+	enemy.set_aim_world(player.global_position)
+
+
+func _debug_force_quickcast(wiz: Wizard, slot: int) -> void:
+	if wiz == null or not is_instance_valid(wiz):
+		return
+	var check: Dictionary = wiz.can_cast(slot, false)
+	if bool(check.get("ok", false)):
+		wiz._do_cast(slot, false, check)
+
+
+func _capture_preview_animation() -> void:
+	var dir := ProjectSettings.globalize_path("res://screenshots")
+	DirAccess.make_dir_recursive_absolute(dir)
+	const FPS := 15.0
+	const DURATION := 5.0
+	var frame_count := int(DURATION * FPS)
+	for frame_i in frame_count:
+		if frame_i == 12:
+			_debug_force_quickcast(enemy, 0)
+		elif frame_i == 28:
+			_debug_force_quickcast(player, 2)
+		elif frame_i == 45 and player != null and not player.chanting:
+			player.begin_chant(0, false)
+		await RenderingServer.frame_post_draw
+		var img := get_viewport().get_texture().get_image()
+		img.save_png(dir.path_join("preview_%04d.png" % frame_i))
+		await _wait(1.0 / FPS)
+	print("SHOT: preview %d frames" % frame_count)
+	get_tree().quit()
 
 
 func _capture(label: String) -> void:
