@@ -104,6 +104,7 @@ func join(code: String) -> void:
 	_debug("join requested", "code=" + _requested_code)
 	if GDSync.is_active():
 		_connection_ready = true
+		_debug("lobby_join", "code=" + _requested_code)
 		GDSync.lobby_join(_requested_code)
 	else:
 		_connection_ready = false
@@ -139,6 +140,7 @@ func _on_connected() -> void:
 	if _hosting and not _in_lobby:
 		_create_lobby()
 	elif not _hosting and not _requested_code.is_empty() and not _in_lobby:
+		_debug("lobby_join", "code=" + _requested_code)
 		GDSync.lobby_join(_requested_code)
 
 func _on_connection_failed(error: int) -> void:
@@ -161,6 +163,7 @@ func _on_lobby_created(name: String) -> void:
 	if _hosting and name == room_code:
 		_attempt_started_ms = Time.get_ticks_msec()
 		_attempt_stage = "lobby_join_after_create"
+		_debug("lobby_join", "code=" + name)
 		GDSync.lobby_join(name)
 
 func _on_lobby_creation_failed(name: String, error: int) -> void:
