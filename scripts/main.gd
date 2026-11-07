@@ -132,7 +132,7 @@ func _ready() -> void:
 		var code: int = await tester.run()
 		get_tree().quit(code)
 		return
-	for mode in ["--shot-menu", "--shot-wand", "--shot-craft", "--shot-duel", "--shot-chant", "--shot-assist", "--shot-shield", "--shot-draft", "--shot-boot", "--shot-result", "--shot-preview"]:
+	for mode in ["--shot-menu", "--shot-wand", "--shot-craft", "--shot-duel", "--shot-chant", "--shot-assist", "--shot-shield", "--shot-draft", "--shot-boot", "--shot-result", "--shot-preview", "--shot-wards"]:
 		if mode in args:
 			await _debug_shot(mode)
 			return
@@ -1008,6 +1008,26 @@ func _debug_shot(mode: String) -> void:
 				ai.active = false
 			if mode == "--shot-shield":
 				player.add_shield(35.0, 3.0, Color("8fe7ff"))
+		"--shot-wards":
+			# All six ward materials in a row plus fire/ice ground, for a
+			# readability check of the spellcraft visuals.
+			_debug_shot_setup_duel()
+			ai.active = false
+			player.global_position = Vector3(-6.5, 0, 3.5)
+			enemy.global_position = Vector3(6.5, 0, 3.5)
+			var ward_wand: Dictionary = SpellData.wand("apprentice")
+			var xs := [-5.5, -3.3, -1.1, 1.1, 3.3, 5.5]
+			var ward_elements := ["fire", "frost", "earth", "storm", "arcane", "void"]
+			for wi in 6:
+				var ward_spell := SpellDef.new(ward_elements[wi], "wall")
+				var ward := SpellWall.new()
+				ward.setup_ward({"arena": arena, "owner": player, "element": ward_elements[wi], "stats": ward_spell.resolved_stats(ward_wand, false)})
+				arena.walls.add_child(ward)
+				ward.global_position = Vector3(xs[wi], 0, -1.0)
+				ward.rotation.y = 0.0
+			arena.spawn_zone({"owner": player, "element": "fire", "shape": "circle", "position": Vector3(-3.0, 0, 2.5), "radius": 1.2, "duration": 9.0, "dps": 0.0})
+			arena.spawn_zone({"owner": player, "element": "frost", "shape": "strip", "a": Vector3(0, 0, 2.5), "b": Vector3(4, 0, 2.5), "half_width": 0.6, "duration": 9.0, "chill": true})
+			enemy.add_shield(30.0, 9.0, SpellData.ELEMENTS["frost"]["color"], "frost")
 		"--shot-draft":
 			Game.start_arena()
 			Game.player_score = 1

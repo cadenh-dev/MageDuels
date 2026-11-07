@@ -350,18 +350,25 @@ func _build_visual() -> void:
 		flames.position = Vector3(0, 0.1, 0)
 		add_child(flames)
 	if element == "void":
+		# A spinning magenta vortex on both faces of the dark slab.
 		_swirl = MeshInstance3D.new()
-		var torus := TorusMesh.new()
-		torus.inner_radius = 0.55
-		torus.outer_radius = 0.85
-		torus.rings = 24
-		torus.ring_segments = 6
-		_swirl.mesh = torus
-		_swirl.rotation = Vector3(PI * 0.5, 0, 0)
 		_swirl.position = Vector3(0, 1.3, 0)
-		_swirl.material_override = _trim_material("void", color)
-		_swirl.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_OFF
 		add_child(_swirl)
+		for side in [-1.0, 1.0]:
+			for ring in 2:
+				var torus := TorusMesh.new()
+				torus.inner_radius = 0.28 + 0.36 * ring
+				torus.outer_radius = 0.4 + 0.36 * ring
+				torus.rings = 24
+				torus.ring_segments = 6
+				var ring_mi := MeshInstance3D.new()
+				ring_mi.mesh = torus
+				ring_mi.rotation = Vector3(PI * 0.5, 0, 0)
+				ring_mi.scale = Vector3(1.0 + 0.25 * ring, 1.0, 0.7)
+				ring_mi.position = Vector3(0, 0, side * 0.09)
+				ring_mi.material_override = _trim_material("void", color)
+				ring_mi.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_OFF
+				_swirl.add_child(ring_mi)
 
 
 func _build_tesla() -> void:

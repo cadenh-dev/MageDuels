@@ -89,7 +89,7 @@ func _build_visual() -> void:
 
 	var core := MeshInstance3D.new()
 	core.mesh = sphere
-	core.material_override = _core_material(color)
+	core.material_override = _material_core(element, color)
 	core.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_OFF
 	add_child(core)
 
@@ -136,6 +136,25 @@ func _build_visual() -> void:
 func _ready() -> void:
 	if _trail != null:
 		_trail.emitting = true
+
+
+## Material reads at a glance: stone is opaque rock, void a dark core inside
+## its pink halo, frost a pale ice core; the rest glow in element colour.
+static func _material_core(p_element: String, c: Color) -> StandardMaterial3D:
+	match p_element:
+		"earth":
+			if not _core_materials.has("_stone"):
+				var stone := Fx.standard_material(Color("8a6845"))
+				stone.roughness = 1.0
+				_core_materials["_stone"] = stone
+			return _core_materials["_stone"]
+		"void":
+			if not _core_materials.has("_void"):
+				_core_materials["_void"] = Fx.glow_material(Color(0.12, 0.0, 0.1), 0.6)
+			return _core_materials["_void"]
+		"frost":
+			return _core_material(Color("e8fbff"))
+	return _core_material(c)
 
 
 static func _core_material(c: Color) -> StandardMaterial3D:

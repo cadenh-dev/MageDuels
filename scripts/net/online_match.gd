@@ -574,7 +574,7 @@ func _spawn_entity(data: Dictionary) -> void:
 	var node: Node3D
 	if data["kind"] == "projectile":
 		var p := SpellProjectile.new()
-		p.setup({"color": data["color"], "radius": data["radius"], "direction": data["dir"], "speed": data["speed"]})
+		p.setup({"color": data["color"], "radius": data["radius"], "direction": data["dir"], "speed": data["speed"], "element": data.get("element", "fire")})
 		node = p
 		arena.projectiles.add_child(node)
 		p.set_physics_process(false)

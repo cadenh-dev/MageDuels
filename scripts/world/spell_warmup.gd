@@ -135,6 +135,13 @@ func _build_keepalive(parent: Node3D) -> void:
 		ground.position = Vector3(x, -0.8, 0.1)
 		keep.add_child(ground)
 		x += 0.2
+	for element in ["earth", "void", "frost"]:
+		var core := MeshInstance3D.new()
+		core.mesh = box
+		core.material_override = SpellProjectile._material_core(element, Color.WHITE)
+		core.position = Vector3(x, -0.7, 0.2)
+		keep.add_child(core)
+		x += 0.2
 	var flame := MeshInstance3D.new()
 	flame.mesh = box
 	flame.material_override = SpellZone.flame_particle_material()
