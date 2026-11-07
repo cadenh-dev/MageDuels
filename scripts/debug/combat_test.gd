@@ -38,6 +38,11 @@ func run() -> int:
 	p.died.connect(func(w): print("TEST: player died"))
 
 	await _wait(0.3)
+	if Game.cast_mode == Game.CAST_CHANT:
+		_check("quickcast gated in chant-only", not p.quickcast(0))
+	# The rest of this suite checks spell resolution mechanics independently of
+	# the selected player input mode. InputTest covers prepare and chant routing.
+	Game.cast_mode = Game.CAST_CLASSIC
 
 	# --- Projectile hit ---------------------------------------------------
 	e.global_position = Vector3(6, 0, 0)
@@ -208,6 +213,11 @@ func run() -> int:
 	e.take_damage(9999.0, "void", Vector3.ZERO, 0.0)
 	await _wait(0.1)
 	_check("rival dies", not e.is_alive())
+	if "--cast-mode" in OS.get_cmdline_user_args():
+		var args := OS.get_cmdline_user_args()
+		var mode_index := args.find("--cast-mode")
+		if mode_index + 1 < args.size():
+			Game.cast_mode = Game.CAST_CHANT if args[mode_index + 1] == "chant" else Game.CAST_CLASSIC
 
 	print("TEST: %d checks, %d failures" % [checks, failures.size()])
 	for f in failures:

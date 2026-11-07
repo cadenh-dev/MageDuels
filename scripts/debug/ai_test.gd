@@ -7,6 +7,8 @@ extends Node
 var _checks := 0
 var _failures: Array[String] = []
 var main: Node
+var _chant_started_ms := -1
+var _observed_cast_duration := -1.0
 
 
 func run(p_main: Node) -> int:
@@ -18,6 +20,8 @@ func run(p_main: Node) -> int:
 	Game.enemy_pages = SpellData.default_pages(Game.enemy_wand)
 	Game.reset_match("ai")
 	main._build_duel()
+	main.enemy.chant_changed.connect(_on_enemy_chant_changed)
+	main.enemy.cast_fired.connect(_on_enemy_cast)
 	main.ai.active = true
 	main.ai._chant_cooldown = 0.0
 	main.player.max_hp = 9999.0
@@ -33,6 +37,11 @@ func run(p_main: Node) -> int:
 
 	var completed := await _until(func() -> bool: return not main.enemy.chanting, 7.0, "rival completes or drops chant")
 	_check("chant resolves", completed)
+	if Game.cast_mode == Game.CAST_CHANT:
+		var spell: SpellDef = main.enemy.current_spell(main.enemy.last_cast_slot)
+		var expected_min := float(spell.incantation_compact().length()) * 60.0 / (45.0 * 5.0)
+		_check("chant-only AI waits for simulated typing", _observed_cast_duration >= expected_min,
+			"duration=%.2fs min=%.2fs" % [_observed_cast_duration, expected_min])
 	_check("recovery window opens", main.ai.state == AIWizard.State.RECOVER or main.ai.state == AIWizard.State.MOVE, "state=%d" % main.ai.state)
 
 	# Force a second chant and break it with direct damage.
@@ -86,3 +95,14 @@ func _finish() -> int:
 		print("  FAIL: %s" % f)
 	print("AI: %s" % ("PASS" if _failures.is_empty() else "FAIL"))
 	return 0 if _failures.is_empty() else 1
+
+
+func _on_enemy_chant_changed(wizard: Wizard, active: bool) -> void:
+	if wizard == main.enemy and active and _chant_started_ms < 0:
+		_chant_started_ms = Time.get_ticks_msec()
+
+
+func _on_enemy_cast(wizard: Wizard, _spell: SpellDef, _stats: Dictionary, _origin: Vector3, _direction: Vector3) -> void:
+	if wizard == main.enemy and _chant_started_ms >= 0:
+		_observed_cast_duration = float(Time.get_ticks_msec() - _chant_started_ms) / 1000.0
+		_chant_started_ms = -1

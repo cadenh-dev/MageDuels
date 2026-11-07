@@ -29,7 +29,12 @@ func run(p_main: Node) -> int:
 
 	var spell: SpellDef = p.current_spell(0)
 	var incant: String = spell.incantation_compact()
-	_check("chant begins", p.begin_chant(0))
+	if Game.cast_mode == Game.CAST_CHANT:
+		main._cast_input(0)
+	else:
+		_check("classic quickcast accepted", p.quickcast(0))
+		p.begin_chant(0)
+	_check("prepare/chant begins", p.chanting)
 	await get_tree().process_frame
 
 	for i in incant.length():
@@ -58,6 +63,32 @@ func run(p_main: Node) -> int:
 	await get_tree().create_timer(0.35, false).timeout
 	_send_key(KEY_A, KEY_A, 97, false)
 	_check("chant roots the player", before.distance_to(p.global_position) < 0.08, "moved %.2f" % before.distance_to(p.global_position))
+	p.cancel_chant()
+	p.begin_chant(0)
+	_send_key(KEY_BACKSPACE, KEY_BACKSPACE, 8)
+	await get_tree().process_frame
+	_check("empty backspace cancels", not p.chanting)
+	p.begin_chant(0)
+	_send_key(KEY_ESCAPE, KEY_ESCAPE, 0)
+	await get_tree().process_frame
+	_check("escape cancels chant", not p.chanting)
+
+	# Controller route: one face button per rune word, rooted until resolved.
+	p.mana = p.max_mana
+	spell = p.current_spell(0)
+	incant = spell.incantation_compact()
+	_check("controller sequence chant starts", p.begin_chant(0, false, true))
+	var words := spell.incantation().split(" ", false)
+	for word_index in words.size():
+		p.controller_chant_button(word_index)
+	_check("controller word sequence types spell", p.chant_text == incant)
+	var root_before := p.global_position
+	await get_tree().create_timer(p.typed_charge_time() + 0.1, false).timeout
+	_check("controller sequence auto casts", not p.chanting)
+	_check("controller sequence stays rooted", root_before.distance_to(p.global_position) < 0.08)
+	p.begin_chant(0, false, true)
+	p.controller_chant_button(1)
+	_check("wrong controller button behaves as typo", p.chant_typos == 1 and p.chant_text.is_empty())
 	p.cancel_chant()
 
 	# Assisted overcast: hold for the full charge, no typing.
@@ -90,6 +121,11 @@ func run(p_main: Node) -> int:
 		if ev is InputEventJoypadMotion:
 			has_trigger = true
 	_check("controller trigger mapping present", has_trigger)
+	var has_wheel := false
+	for ev in InputMap.action_get_events("chant_wheel"):
+		if ev is InputEventJoypadButton:
+			has_wheel = true
+	_check("controller chant wheel binding present", has_wheel)
 
 	print("INPUT: %d checks, %d failures" % [_checks, _failures.size()])
 	for f in _failures:
