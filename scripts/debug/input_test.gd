@@ -89,7 +89,59 @@ func run(p_main: Node) -> int:
 	p.begin_chant(0, false, true)
 	p.controller_chant_button(1)
 	_check("wrong controller button behaves as typo", p.chant_typos == 1 and p.chant_text.is_empty())
+	_check("controller typo rewinds word index", p.controller_word_index == 0)
+	for word_index in words.size():
+		p.controller_chant_button(word_index)
+	_check("controller chant recovers after typo", p.chant_text == incant)
+	var typos_before_extra := p.chant_typos
+	p.controller_chant_button(0)
+	_check("extra controller press after final word is ignored", p.chant_typos == typos_before_extra and p.chant_text == incant)
 	p.cancel_chant()
+
+	# Wheel face buttons must not fall through to the normal cast actions.
+	main._chant_wheel_open = true
+	var face_a := InputEventJoypadButton.new()
+	face_a.button_index = JOY_BUTTON_A
+	face_a.pressed = true
+	main._unhandled_input(face_a)
+	_check("wheel face button does not start a keyboard chant", not p.chanting)
+	var lb_release := InputEventJoypadButton.new()
+	lb_release.button_index = JOY_BUTTON_LEFT_SHOULDER
+	lb_release.pressed = false
+	main._unhandled_input(lb_release)
+	_check("wheel release starts controller chant", p.chanting and p.controller_chant)
+
+	var back := InputEventJoypadButton.new()
+	back.button_index = JOY_BUTTON_BACK
+	back.pressed = true
+	main._unhandled_input(back)
+	_check("controller Back cancels chant", not p.chanting)
+	p.begin_chant(0)
+	main._chant_wheel_open = true
+	var text_before_wheel_press := p.chant_text
+	main._unhandled_input(face_a)
+	_check("wheel swallows face buttons during an existing chant", p.chant_text == text_before_wheel_press)
+	main._clear_chant_wheel()
+	p.cancel_chant()
+
+	p.begin_chant(0, false, true)
+	main._chant_wheel_open = true
+	var start := InputEventJoypadButton.new()
+	start.button_index = JOY_BUTTON_START
+	start.pressed = true
+	main._unhandled_input(start)
+	_check("Start pauses during controller chant", main.is_paused)
+	_check("pause closes spell wheel", not main._chant_wheel_open and not main.hud._spell_wheel.visible)
+	main._unhandled_input(start)
+	_check("Start resumes after controller chant pause", not main.is_paused)
+	p.cancel_chant()
+
+	if Game.cast_mode == Game.CAST_CHANT:
+		p.begin_chant(0, true)
+		var assist_window := p.perfect_window()
+		_check("assisted perfect window uses fixed minimum", is_equal_approx(assist_window.x, Wizard.CHANT_MIN_TIME * p.cast_time_mult), "start=%.2f" % assist_window.x)
+		_check("assisted perfect window does not invert", assist_window.x <= assist_window.y, "window=%.2f..%.2f" % [assist_window.x, assist_window.y])
+		p.cancel_chant()
 
 	# Assisted overcast: hold for the full charge, no typing.
 	p.mana = p.max_mana
@@ -126,6 +178,9 @@ func run(p_main: Node) -> int:
 		if ev is InputEventJoypadButton:
 			has_wheel = true
 	_check("controller chant wheel binding present", has_wheel)
+	main._chant_wheel_open = true
+	main._clear_duel()
+	_check("duel teardown clears and hides the chant wheel", not main._chant_wheel_open and main.hud == null)
 
 	print("INPUT: %d checks, %d failures" % [_checks, _failures.size()])
 	for f in _failures:

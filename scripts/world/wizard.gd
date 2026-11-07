@@ -592,11 +592,14 @@ func controller_chant_button(button_index: int) -> void:
 		cancel_chant()
 		return
 	var words := spell.incantation().split(" ", false)
+	if controller_word_index >= words.size():
+		return
 	if button_index == controller_word_index and controller_word_index < words.size():
 		chant_word(str(words[controller_word_index]))
 		controller_word_index += 1
 	else:
 		chant_key("#")
+		controller_word_index = 0
 
 
 func chant_backspace() -> void:
@@ -685,7 +688,10 @@ func assist_charge_time() -> float:
 
 ## The assisted hold's perfect-release window, as a (start, end) pair.
 func perfect_window() -> Vector2:
-	return Vector2(typed_charge_time(), CHANT_PERFECT_END * cast_time_mult)
+	var start := CHANT_MIN_TIME * cast_time_mult
+	if Game.cast_mode == Game.CAST_CHANT and not assisted_chant:
+		start = typed_charge_time()
+	return Vector2(start, CHANT_PERFECT_END * cast_time_mult)
 
 
 func _finish_assisted() -> void:
@@ -705,7 +711,7 @@ func _finish_assisted() -> void:
 func assist_release() -> bool:
 	if not chanting or not assisted_chant:
 		return false
-	if chant_elapsed < typed_charge_time():
+	if chant_elapsed < CHANT_MIN_TIME * cast_time_mult:
 		cancel_chant()
 		return false
 	var perfect := chant_elapsed <= perfect_window().y

@@ -125,6 +125,7 @@ func _boot(skip_warmup: bool = false) -> void:
 
 
 func _profile() -> void:
+	Game.cast_mode = Game.CAST_CLASSIC
 	var boot_t0 := Time.get_ticks_usec()
 	await _boot("--no-warmup" in OS.get_cmdline_user_args())
 	print("PROFILE boot_ms=%.1f" % (float(Time.get_ticks_usec() - boot_t0) / 1000.0))
@@ -336,6 +337,7 @@ func _run_round_flow() -> void:
 
 
 func _clear_duel() -> void:
+	_clear_chant_wheel()
 	if ai != null and is_instance_valid(ai):
 		ai.stop()
 		ai.queue_free()
@@ -381,6 +383,7 @@ func _on_death(wiz: Wizard) -> void:
 		return
 	round_running = false
 	duel_active = false
+	_clear_chant_wheel()
 	if player != null and is_instance_valid(player):
 		player.input_enabled = false
 		player.cancel_chant()
@@ -479,12 +482,18 @@ func _unhandled_input(event: InputEvent) -> void:
 		get_viewport().set_input_as_handled()
 		return
 	if event.is_action_released("chant_wheel") and _chant_wheel_open:
-		_chant_wheel_open = false
-		if hud != null:
-			hud.set_spell_wheel(false)
-		if player != null and is_instance_valid(player):
+		var can_prepare := duel_active and round_running and not is_paused and player != null and is_instance_valid(player) and player.is_alive() and player.input_enabled
+		_clear_chant_wheel()
+		if can_prepare:
 			player.begin_chant(_chant_wheel_slot, false, true)
 		get_viewport().set_input_as_handled()
+		return
+	# Start remains available while chanting. Back is a dedicated controller
+	# cancel button so all four face buttons remain available for word entry.
+	if event.is_action_pressed("pause") and (player == null or not is_instance_valid(player) or not player.chanting or event is InputEventJoypadButton):
+		if duel_active:
+			_toggle_pause()
+			get_viewport().set_input_as_handled()
 		return
 	# Assisted overcast is hold-and-release, so catch the release before the chant
 	# keyboard block below swallows it.
@@ -493,6 +502,9 @@ func _unhandled_input(event: InputEvent) -> void:
 			player.assist_release()
 			get_viewport().set_input_as_handled()
 			return
+	if _chant_wheel_open and event is InputEventJoypadButton and event.is_pressed() and event.button_index in [JOY_BUTTON_A, JOY_BUTTON_B, JOY_BUTTON_X, JOY_BUTTON_Y]:
+		get_viewport().set_input_as_handled()
+		return
 
 	if event is InputEventKey:
 		var any_key := event as InputEventKey
@@ -502,6 +514,10 @@ func _unhandled_input(event: InputEvent) -> void:
 	if player != null and is_instance_valid(player) and player.chanting and duel_active and not is_paused:
 		if event is InputEventJoypadButton and event.is_pressed():
 			var face := event as InputEventJoypadButton
+			if face.button_index == JOY_BUTTON_BACK and player.controller_chant:
+				player.cancel_chant()
+				get_viewport().set_input_as_handled()
+				return
 			var word_index := -1
 			match face.button_index:
 				JOY_BUTTON_A: word_index = 0
@@ -531,13 +547,7 @@ func _unhandled_input(event: InputEvent) -> void:
 								player.chant_key(ch)
 				get_viewport().set_input_as_handled()
 		return
-
-	if event.is_action_pressed("pause"):
-		if duel_active:
-			_toggle_pause()
-			get_viewport().set_input_as_handled()
-		return
-	if event is InputEventJoypadButton and Game.cast_mode == Game.CAST_CHANT and not _chant_wheel_open:
+	if event is InputEventJoypadButton and Game.cast_mode == Game.CAST_CHANT:
 		if event.button_index in [JOY_BUTTON_A, JOY_BUTTON_B, JOY_BUTTON_X, JOY_BUTTON_Y]:
 			get_viewport().set_input_as_handled()
 			return
@@ -586,6 +596,7 @@ func _cast_input(slot: int) -> void:
 func _toggle_pause() -> void:
 	if not duel_active:
 		return
+	_clear_chant_wheel()
 	is_paused = not is_paused
 	get_tree().paused = is_paused
 	if hud != null and is_instance_valid(hud):
@@ -593,8 +604,15 @@ func _toggle_pause() -> void:
 
 
 func _reset_pause() -> void:
+	_clear_chant_wheel()
 	is_paused = false
 	get_tree().paused = false
+
+
+func _clear_chant_wheel() -> void:
+	_chant_wheel_open = false
+	if hud != null and is_instance_valid(hud):
+		hud.set_spell_wheel(false)
 
 
 func _quit_from_pause() -> void:
@@ -611,6 +629,7 @@ func _wait(seconds: float) -> void:
 # --------------------------------------------------------------------------
 
 func _smoke_test() -> void:
+	Game.cast_mode = Game.CAST_CLASSIC
 	print("SMOKE: building duel")
 	Game.player_wand = "emberwood"
 	Game.enemy_wand = "stormbone"

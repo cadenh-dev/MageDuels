@@ -22,6 +22,28 @@ func run(p_main: Node) -> int:
 	main._build_duel()
 	main.enemy.chant_changed.connect(_on_enemy_chant_changed)
 	main.enemy.cast_fired.connect(_on_enemy_cast)
+	main.enemy.input_enabled = true
+	if Game.cast_mode == Game.CAST_CHANT:
+		_check("chant AI uses the documented 45 WPM band", is_equal_approx(main.ai._typing_wpm(), 45.0))
+		main.enemy.page = 0
+		main.ai._page_swap_timer = -0.1
+		main.ai._cast_timer = 999.0
+		main.ai._chant_cooldown = 999.0
+		main.ai._think_move(0.0)
+		_check("chant AI swaps to page B", main.enemy.page == 1, "page=%d" % main.enemy.page)
+		main.enemy.page = 0
+		var saved_page: Array = main.enemy.pages[0]
+		main.enemy.pages[0] = [SpellDef.new("earth", "wall"), null, null, null]
+		main.enemy.mana = main.enemy.max_mana
+		_check("chant AI can begin a wall chant", main.ai._try_begin_chant() and main.enemy.current_spell(main.enemy.chant_slot).form == "wall")
+		main.enemy.cancel_chant()
+		main.enemy.pages[0] = saved_page
+	else:
+		_check("classic AI retains fast typing interval", main.enemy.begin_chant(0))
+		main.ai._state_timer = 0.0
+		main.ai._tick_windup(0.01)
+		_check("classic AI typing stays at 0.09–0.14s per character", main.ai._typing_interval >= 0.09 and main.ai._typing_interval <= 0.14, "interval=%.3f" % main.ai._typing_interval)
+		main.enemy.cancel_chant()
 	main.ai.active = true
 	main.ai._chant_cooldown = 0.0
 	main.player.max_hp = 9999.0

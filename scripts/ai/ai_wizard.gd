@@ -147,6 +147,9 @@ func _physics_process(delta: float) -> void:
 func _think_move(_delta: float) -> void:
 	_move()
 	if Game.cast_mode == Game.CAST_CHANT:
+		if _page_swap_timer <= 0.0 and not wizard.chanting:
+			_page_swap_timer = randf_range(8.0, 13.0)
+			wizard.swap_page()
 		if _cast_timer <= 0.0 and _can_see_target() and _nearest_projectile_distance() > 3.0:
 			_cast_timer = randf_range(0.65, 1.1) / maxf(0.7, difficulty)
 			if not _try_begin_chant():
@@ -177,7 +180,7 @@ func _tick_windup(delta: float) -> void:
 		state = State.TYPING
 		_typing_index = 0
 		_typing_timer = 0.0
-		_typing_interval = 60.0 / (_typing_wpm() * 5.0)
+		_typing_interval = 60.0 / (_typing_wpm() * 5.0) if Game.cast_mode == Game.CAST_CHANT else randf_range(0.09, 0.14)
 		# Give the honest chant enough time to finish typing *and* hold the
 		# charge, plus a little slack for a human player to interrupt it.
 		var spell := wizard.current_spell(_chant_slot)
@@ -213,7 +216,8 @@ func _tick_typing(delta: float) -> void:
 	if _typing_index < incant.length() and _typing_timer <= 0.0:
 		wizard.chant_key(incant.substr(_typing_index, 1))
 		_typing_index += 1
-		_typing_timer = _typing_interval + (randf_range(0.25, 0.55) if randf() < 0.025 else 0.0)
+		var pause := randf_range(0.25, 0.55) if Game.cast_mode == Game.CAST_CHANT and randf() < 0.025 else 0.0
+		_typing_timer = _typing_interval + pause
 
 	if _typing_index >= incant.length() and wizard.chant_progress() >= 1.0:
 		wizard.chant_finish()
@@ -247,7 +251,7 @@ func _try_begin_chant() -> bool:
 		var spell := wizard.current_spell(slot)
 		if spell == null:
 			continue
-		if spell.form == "wall":
+		if spell.form == "wall" and Game.cast_mode != Game.CAST_CHANT:
 			continue
 		var stats := spell.resolved_stats(wizard.wand, true)
 		if wizard.mana < float(stats["mana"]) + 5.0:
