@@ -45,6 +45,7 @@ func _ready() -> void:
 		var button := UIKit.button("HOST PUBLIC" if public else "HOST PRIVATE", 18)
 		button.name = "HostPublicButton" if public else "HostPrivateButton"
 		button.pressed.connect(func() -> void:
+			_debug("host pressed", "public=" + str(public))
 			NetSession.host({"public": public, "host_name": Game.player_name, "cast_mode": Game.cast_mode})
 		)
 		_actions.add_child(button)
@@ -88,15 +89,23 @@ func _ready() -> void:
 
 func _process(_delta: float) -> void:
 	var transport := NetSession.transport
-	var ready := not (transport is GDSyncTransport) or (transport as GDSyncTransport).backend_ready or NetSession.state == OnlineSession.State.DISCONNECTED
+	var relay_ready := not (transport is GDSyncTransport) or (transport as GDSyncTransport).is_backend_ready()
+	var ready := relay_ready or NetSession.state == OnlineSession.State.DISCONNECTED
 	var busy := NetSession.state in [OnlineSession.State.JOINING, OnlineSession.State.HOSTING_WAITING, OnlineSession.State.IN_LOBBY, OnlineSession.State.IN_MATCH]
 	for button in _host_buttons:
-		button.disabled = not ready or busy
+		button.disabled = busy
 	_join_button.disabled = busy
 	if not ready and NetSession.state == OnlineSession.State.IDLE:
 		var controller: Object = GDSync.get("_connection_controller")
 		var connection_status := int(controller.get("status")) if controller != null else -1
 		_status.text = "Securing connection…" if connection_status >= 3 else "Contacting relay…"
+	if transport is GDSyncTransport and not relay_ready:
+		if NetSession.state == OnlineSession.State.HOSTING_WAITING:
+			_status.text = "Hosting as soon as connected..."
+		elif NetSession.state == OnlineSession.State.JOINING:
+			_status.text = "Joining as soon as connected..."
+	elif NetSession.state == OnlineSession.State.IDLE and ready:
+		_status.text = NetSession.status
 	if _status.text != _last_debug_status:
 		_last_debug_status = _status.text
 		_debug("status", _status.text.replace("\n", " | "))

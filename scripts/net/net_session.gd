@@ -27,6 +27,7 @@ var _saved_cast_mode := ""
 var _game: Node
 var _netdebug := false
 var _debug_started_ms := 0
+var _warm_started := false
 
 func _debug(event: String, details: String = "") -> void:
 	if _netdebug:
@@ -64,6 +65,15 @@ func warm_online() -> void:
 	# Only normal Web/menu play warms the relay. Headless test paths retain their
 	# existing lazy transport selection and never consume relay quota.
 	if OS.has_feature("web"):
+		if _warm_started:
+			return
+		_warm_started = true
+		var warm_delay_ms := 0
+		if _netdebug:
+			warm_delay_ms = int(JavaScriptBridge.eval("Number(new URLSearchParams(window.location.search).get('warmdelay') || 0)"))
+		if warm_delay_ms > 0:
+			_debug("menu prewarm delayed", "ms=" + str(warm_delay_ms))
+			await get_tree().create_timer(float(warm_delay_ms) / 1000.0).timeout
 		prepare_online()
 		if transport is GDSyncTransport:
 			(transport as GDSyncTransport).warm_up()
@@ -193,6 +203,7 @@ func _process(delta: float) -> void:
 		send_reliable({"type": "ping", "stamp": now})
 
 func leave() -> void:
+	_warm_started = false
 	if transport != null:
 		send_reliable({"type": "bye"})
 		transport.set_match_state("waiting")

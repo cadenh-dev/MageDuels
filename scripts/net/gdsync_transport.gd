@@ -56,10 +56,10 @@ func _bind_signals() -> void:
 
 func _ensure_connected() -> void:
 	_bind_signals()
-	if GDSync.is_active():
+	if _is_relay_ready():
 		_debug("already active")
 		_on_connected()
-	elif not _starting:
+	elif not GDSync.is_active() and not _starting:
 		_starting = true
 		_attempt_started_ms = Time.get_ticks_msec()
 		_attempt_stage = "connection"
@@ -70,6 +70,9 @@ func warm_up() -> void:
 	if not backend_ready:
 		_ensure_connected()
 
+func is_backend_ready() -> bool:
+	return _is_relay_ready()
+
 func host(options: Dictionary) -> void:
 	_prepare_lobby_request()
 	_hosting = true
@@ -77,7 +80,7 @@ func host(options: Dictionary) -> void:
 	_create_attempts = 0
 	_create_retry_pending = false
 	_create_retry_generation += 1
-	if GDSync.is_active():
+	if _is_relay_ready():
 		_connection_ready = true
 		_create_lobby()
 	else:
@@ -85,7 +88,7 @@ func host(options: Dictionary) -> void:
 		_ensure_connected()
 
 func _create_lobby() -> void:
-	if not _hosting or not GDSync.is_active():
+	if not _hosting or not _is_relay_ready():
 		return
 	_create_attempts += 1
 	if _create_attempts > 6:
@@ -106,7 +109,7 @@ func join(code: String) -> void:
 	_attempt_started_ms = Time.get_ticks_msec()
 	_attempt_stage = "lobby_join"
 	_debug("join requested", "code=" + _requested_code)
-	if GDSync.is_active():
+	if _is_relay_ready():
 		_connection_ready = true
 		_debug("lobby_join", "code=" + _requested_code)
 		GDSync.lobby_join(_requested_code)
@@ -115,7 +118,7 @@ func join(code: String) -> void:
 		_ensure_connected()
 
 func _prepare_lobby_request() -> void:
-	if _in_lobby and GDSync.is_active():
+	if _in_lobby and _is_relay_ready():
 		GDSync.lobby_leave()
 	_in_lobby = false
 	_requested_code = ""
@@ -125,12 +128,12 @@ func _prepare_lobby_request() -> void:
 	_known_host_id = -1
 	_peer_notified = false
 	room_code = ""
-	backend_ready = GDSync.is_active()
+	backend_ready = _is_relay_ready()
 
 func _on_connected() -> void:
 	_debug("connected signal")
-	if not GDSync.is_active():
-		_debug("stale connected ignored", "plugin is inactive")
+	if not _is_relay_ready():
+		_debug("connected signal ignored", "relay is not secured yet")
 		return
 	_attempt_stage = ""
 	_starting = false
@@ -156,6 +159,7 @@ func _on_connection_failed(error: int) -> void:
 
 func _on_disconnected() -> void:
 	_debug("disconnected signal")
+	backend_ready = false
 	if _leaving:
 		return
 	_in_lobby = false
@@ -301,10 +305,18 @@ func set_match_state(value: String) -> void:
 		GDSync.lobby_set_tag("state", value)
 
 func list_public_lobbies() -> Array:
-	if not GDSync.is_active():
+	_bind_signals()
+	if not _is_relay_ready():
 		_ensure_connected()
 		await GDSync.connected
 	return _format_lobbies(await _request_lobbies())
+
+func _is_relay_ready() -> bool:
+	var controller: Object = GDSync.get("_connection_controller")
+	if controller == null:
+		return false
+	var status := int(controller.get("status"))
+	return status >= ENUMS.CONNECTION_STATUS.CONNECTED
 
 func _request_lobbies() -> Array:
 	var received := {"lobbies": []}
