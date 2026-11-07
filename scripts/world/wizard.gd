@@ -47,6 +47,8 @@ var move_speed := 5.5
 var cast_time_mult := 1.0
 var alive := true
 var input_enabled := true
+## Online controller supplies movement even for the locally labelled wizard.
+var external_input := false
 
 var aim_point := Vector3.ZERO
 var aim_override := Vector3.INF
@@ -410,7 +412,7 @@ func _physics_process(delta: float) -> void:
 		return
 
 	var move := Vector3.ZERO
-	if is_player and input_enabled and not chanting and stun_time <= 0.0:
+	if is_player and not external_input and input_enabled and not chanting and stun_time <= 0.0:
 		var x := Input.get_axis("move_left", "move_right")
 		var f := Input.get_axis("move_back", "move_forward")
 		move = Vector3(x, 0, -f)
@@ -421,7 +423,7 @@ func _physics_process(delta: float) -> void:
 			if absf(jx) > 0.15 or absf(jy) > 0.15:
 				move += Vector3(jx, 0, jy)
 		move = move.limit_length(1.0)
-	elif not is_player and not chanting:
+	elif (not is_player or external_input) and not chanting:
 		move = _ai_move.limit_length(1.0)
 
 	var speed := move_speed

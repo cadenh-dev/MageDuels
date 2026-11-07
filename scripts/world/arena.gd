@@ -4,6 +4,8 @@ extends Node3D
 ## The 2.5D duelling stage. Owns the camera, lighting, and spell resolution.
 
 var wizards: Array[Wizard] = []
+signal beam_fx(from: Vector3, to: Vector3, color: Color, width: float)
+var networked := false
 var projectiles: Node3D
 var effects: Node3D
 var walls: Node3D
@@ -365,6 +367,9 @@ func shake(amount: float, duration: float = 0.2) -> void:
 
 
 func hitstop(duration_ms: int = 25, scale: float = 0.06) -> void:
+	# Online physics and transport cadence must use real time on both peers.
+	if networked:
+		return
 	Engine.time_scale = minf(Engine.time_scale, scale)
 	_hitstop_until = maxi(_hitstop_until, Time.get_ticks_msec() + duration_ms)
 
@@ -495,6 +500,7 @@ func _spawn_beam(caster: Wizard, spell: SpellDef, s: Dictionary, origin: Vector3
 			victim = hit["collider"]
 
 	Fx.beam(effects, origin, end, s.get("color", Color.WHITE), 0.12 if s.get("overcast", false) else 0.085)
+	beam_fx.emit(origin, end, s.get("color", Color.WHITE), 0.12 if s.get("overcast", false) else 0.085)
 	Fx.burst(effects, end, s.get("color", Color.WHITE), 12, 4.0, 0.07, 0.35)
 	if victim != null:
 		_resolve_on(caster, victim, spell, s, origin)

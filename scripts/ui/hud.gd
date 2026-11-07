@@ -3,6 +3,9 @@ extends CanvasLayer
 
 signal pause_resume
 signal pause_quit
+var online := false
+var online_round := 0
+var online_scores: Array = [0, 0]
 
 var player: Wizard
 var enemy: Wizard
@@ -175,15 +178,15 @@ func _build_side_panel(is_player: bool) -> PanelContainer:
 	if is_player:
 		header.add_child(UIKit.bold_label("YOU", 16, UIKit.ACCENT))
 	else:
-		header.add_child(UIKit.label(str(SpellData.wand(Game.enemy_wand)["name"]), 15, UIKit.MUTED))
+		header.add_child(UIKit.label(str(enemy.wand["name"]) if online else str(SpellData.wand(Game.enemy_wand)["name"]), 15, UIKit.MUTED))
 	var spacer := Control.new()
 	spacer.size_flags_horizontal = Control.SIZE_EXPAND_FILL
 	spacer.mouse_filter = Control.MOUSE_FILTER_IGNORE
 	header.add_child(spacer)
 	if is_player:
-		header.add_child(UIKit.label(str(SpellData.wand(Game.player_wand)["name"]), 15, UIKit.MUTED))
+		header.add_child(UIKit.label(str(player.wand["name"]) if online else str(SpellData.wand(Game.player_wand)["name"]), 15, UIKit.MUTED))
 	else:
-		header.add_child(UIKit.bold_label(AIWizard.title_for(Game.enemy_wand), 14, UIKit.DANGER))
+		header.add_child(UIKit.bold_label(enemy.wizard_name if online else AIWizard.title_for(Game.enemy_wand), 14, UIKit.DANGER))
 
 	var hp_wrap := Control.new()
 	hp_wrap.custom_minimum_size = Vector2(0, 20)
@@ -519,7 +522,7 @@ func _build_pause() -> void:
 	box.custom_minimum_size = Vector2(320, 0)
 	panel.add_child(box)
 
-	var title := UIKit.heading("PAUSED", 40, UIKit.INK)
+	var title := UIKit.heading("MATCH MENU" if online else "PAUSED", 40, UIKit.INK)
 	title.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
 	box.add_child(title)
 
@@ -542,7 +545,7 @@ func _build_pause() -> void:
 	box.add_child(resume)
 	_resume_button = resume
 
-	var quit := UIKit.ghost_button("QUIT TO MENU", 18)
+	var quit := UIKit.ghost_button("LEAVE MATCH" if online else "QUIT TO MENU", 18)
 	quit.pressed.connect(func() -> void: pause_quit.emit())
 	box.add_child(quit)
 
@@ -558,7 +561,7 @@ func set_paused(paused: bool) -> void:
 
 
 func _build_coach() -> void:
-	if Game.round_index != 0:
+	if online or Game.round_index != 0:
 		return
 	_coach = Coach.new()
 	_coach.player = player
@@ -646,6 +649,11 @@ func _update_input_hints() -> void:
 
 
 func _update_round_info() -> void:
+	if online:
+		_round_label.text = "ROUND %d" % (online_round + 1)
+		_score_label.text = "%d  —  %d" % online_scores
+		_element_badge.text = "%s SURGE  ·  +15%%" % arena.arena_element.to_upper()
+		return
 	_round_label.text = "ROUND %d" % (Game.round_index + 1)
 	_score_label.text = "%d  —  %d" % [Game.player_score, Game.enemy_score]
 	var e: Dictionary = SpellData.ELEMENTS.get(Game.arena_element, {})

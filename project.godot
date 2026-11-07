@@ -24,6 +24,7 @@ Game="*res://scripts/core/game.gd"
 SpellData="*res://scripts/core/spell_data.gd"
 Audio="*res://scripts/core/audio.gd"
 AsciiFx="*res://scripts/world/ascii_fx.gd"
+NetSession="*res://scripts/net/net_session.gd"
 
 [display]
 

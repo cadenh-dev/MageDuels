@@ -4,6 +4,8 @@ extends Control
 signal play_pressed
 signal how_pressed
 signal quit_pressed
+signal online_pressed
+var notice := ""
 
 var _how_root: Control
 var _play_button: Button
@@ -55,6 +57,13 @@ func _ready() -> void:
 	play.pressed.connect(func() -> void: play_pressed.emit())
 	box.add_child(play)
 	_play_button = play
+	var online_button := UIKit.ghost_button("ONLINE", 19)
+	online_button.pressed.connect(func() -> void: online_pressed.emit())
+	box.add_child(online_button)
+	if not notice.is_empty():
+		var message := UIKit.label(notice, 16, UIKit.GOLD)
+		message.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
+		box.add_child(message)
 
 	var how := UIKit.ghost_button("HOW TO PLAY", 19)
 	how.custom_minimum_size = Vector2(470, 48)

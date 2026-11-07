@@ -22,6 +22,8 @@ var _last_action_ms := 0
 var _pad_aim := Vector2.RIGHT
 var _chant_wheel_open := false
 var _chant_wheel_slot := 0
+var online_match: OnlineMatch
+var menu_notice := ""
 
 
 func _ready() -> void:
@@ -35,9 +37,29 @@ func _ready() -> void:
 	add_child(screens)
 
 	var args := OS.get_cmdline_user_args()
+	NetSession.lobby_ready.connect(_online_ready)
+	NetSession.disconnected.connect(_online_disconnected)
 	for arg_i in args.size():
 		if args[arg_i] == "--cast-mode" and arg_i + 1 < args.size():
 			Game.cast_mode = Game.CAST_CLASSIC if str(args[arg_i + 1]).to_lower() == Game.CAST_CLASSIC else Game.CAST_CHANT
+	if "--net-test" in args:
+		var net_test: Node = load("res://scripts/debug/net_test.gd").new()
+		add_child(net_test)
+		return
+	if "--net-host" in args or "--net-join" in args:
+		await _boot()
+		show_online()
+		if "--net-host" in args:
+			var idx := args.find("--net-host")
+			var port := ENetTransport.DEFAULT_PORT
+			if idx + 1 < args.size() and args[idx + 1].is_valid_int():
+				port = int(args[idx + 1])
+			NetSession.host({"port": port, "host_name": Game.player_name, "cast_mode": Game.cast_mode})
+		else:
+			var idx := args.find("--net-join")
+			if idx + 1 < args.size():
+				NetSession.join(args[idx + 1])
+		return
 	if "--audio-selftest" in args or "--voice-selftest" in args:
 		Audio.prepare()
 		await Audio.run_selftest()
@@ -188,10 +210,48 @@ func show_menu() -> void:
 	_reset_pause()
 	_clear_duel()
 	var menu := MenuScreen.new()
+	menu.notice = menu_notice
+	menu_notice = ""
+	menu.online_pressed.connect(show_online)
 	menu.play_pressed.connect(_on_play_pressed)
 	menu.how_pressed.connect(menu.show_how)
 	menu.quit_pressed.connect(func() -> void: get_tree().quit())
 	_swap_screen(menu)
+
+
+func show_online() -> void:
+	_reset_pause()
+	_clear_duel()
+	var screen := OnlineScreen.new()
+	screen.cancel_pressed.connect(show_menu)
+	_swap_screen(screen)
+
+
+func _online_ready() -> void:
+	_clear_screen()
+	_clear_duel()
+	Game.mode = "online"
+	Game.input_mode = "kb"
+	online_match = OnlineMatch.new()
+	add_child(online_match)
+	online_match.finished.connect(_online_finished)
+	online_match.setup(NetSession)
+
+
+func _online_finished(reason: String) -> void:
+	if is_instance_valid(online_match):
+		online_match.queue_free()
+	online_match = null
+	Game.mode = "ai"
+	menu_notice = reason
+	show_menu()
+
+
+func _online_disconnected(reason: String) -> void:
+	# A match handles its own teardown; pre-match failures return here directly.
+	if not is_instance_valid(online_match):
+		menu_notice = reason
+		show_menu()
 
 
 func _on_play_pressed() -> void:
@@ -457,6 +517,8 @@ func _process(_delta: float) -> void:
 
 
 func _input(event: InputEvent) -> void:
+	if is_instance_valid(online_match):
+		return
 	if event is InputEventJoypadMotion and _chant_wheel_open:
 		var motion := event as InputEventJoypadMotion
 		if motion.axis == JOY_AXIS_RIGHT_X or motion.axis == JOY_AXIS_RIGHT_Y:
@@ -474,6 +536,8 @@ func _input(event: InputEvent) -> void:
 
 
 func _unhandled_input(event: InputEvent) -> void:
+	if is_instance_valid(online_match):
+		return
 	if event.is_action_pressed("chant_wheel") and duel_active and not is_paused and Game.cast_mode == Game.CAST_CHANT:
 		_chant_wheel_open = true
 		_chant_wheel_slot = player.selected_slot if player != null else 0

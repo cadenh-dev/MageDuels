@@ -29,6 +29,7 @@ const SETTINGS_PATH := "user://settings.cfg"
 const CAST_CLASSIC := "classic"
 const CAST_CHANT := "chant"
 var cast_mode := CAST_CHANT
+var player_name := "Wizard"
 
 
 func _ready() -> void:
@@ -36,6 +37,7 @@ func _ready() -> void:
 	var settings := ConfigFile.new()
 	if settings.load(SETTINGS_PATH) == OK:
 		cast_mode = str(settings.get_value("game", "cast_mode", CAST_CHANT))
+		player_name = str(settings.get_value("online", "player_name", "Wizard")).left(24)
 	if cast_mode not in [CAST_CLASSIC, CAST_CHANT]:
 		cast_mode = CAST_CHANT
 	_install_input_map()
@@ -67,7 +69,18 @@ func record_round(player_won: bool) -> void:
 func set_cast_mode(value: String) -> void:
 	cast_mode = CAST_CLASSIC if value.to_lower() == CAST_CLASSIC else CAST_CHANT
 	var settings := ConfigFile.new()
+	settings.load(SETTINGS_PATH)
 	settings.set_value("game", "cast_mode", cast_mode)
+	settings.save(SETTINGS_PATH)
+
+
+func set_player_name(value: String) -> void:
+	player_name = value.strip_edges().left(24)
+	if player_name.is_empty():
+		player_name = "Wizard"
+	var settings := ConfigFile.new()
+	settings.load(SETTINGS_PATH)
+	settings.set_value("online", "player_name", player_name)
 	settings.save(SETTINGS_PATH)
 
 
