@@ -132,7 +132,7 @@ func _build_how_overlay() -> Control:
 	var lines := [
 		["BUILD", "Both duelists start with the Apprentice Wand and the same spellbook. Win rounds to earn boons."],
 		["MOVE", "WASD moves. The mouse aims. Stay inside the glowing ring."],
-		["CAST MODE", "CHANT ONLY is the default: press 1–4 to prepare, or SPACE to start a free chant, then type the ghosted runes and press ENTER. While chanting, letter keys type instead of moving; ESC or BACKSPACE on an empty line cancels. Hold LB to choose with the right stick, then press A/B/X/Y for each incantation word."],
+		["CAST MODE", "CHANT ONLY is the default: press 1–4 to prepare, or SPACE to start a free chant, then type the ghosted runes and press ENTER. While chanting, letter keys type instead of moving; ESC or BACKSPACE on an empty line cancels. On controller, hold LB and aim with RS, then release LB to prepare; press A/B/X/Y for each word. BACK cancels and START pauses."],
 		["CHANT", "Typed overcast deals ×2.4 damage for full mana. Half-typed still fires a ×0.5 FIZZLE; a direct hit can break the chant. Hold F / RMB / LT for assisted overcast. Choose CLASSIC for instant quickcasts and SPACE typed overcast."],
 		["MODIFY", "Runes combine one element, one form, and one modifier. TRACK makes every projectile seek the rival — Fire + TRACK is a seeking bolt."],
 		["DRAFT", "After each round the loser picks a boon first. Cards change your wand, add runes, or boost stats, and persist for the match."],

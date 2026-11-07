@@ -636,6 +636,10 @@ func _update_input_hints() -> void:
 	var controls := "WASD MOVE  ·  1–4 CAST  ·  SPACE CHANT  ·  F / RMB HOLD  ·  SHIFT PAGE"
 	if Game.input_mode == "pad":
 		controls = "LS MOVE  ·  RS AIM  ·  ABXY CAST  ·  LT HOLD  ·  RB PAGE"
+	if Game.cast_mode == Game.CAST_CHANT:
+		controls = "WASD MOVE  ·  1–4 PREPARE  ·  TYPE TO CAST  ·  ESC CANCEL  ·  SHIFT PAGE"
+		if Game.input_mode == "pad":
+			controls = "LS MOVE  ·  LB WHEEL / RS PICK  ·  RELEASE LB PREPARES  ·  ABXY WORDS  ·  BACK CANCEL / START PAUSE"
 	var text := "PAGE %s  ·  %s" % ["A" if player.page == 0 else "B", controls]
 	if _page_label.text != text:
 		_page_label.text = text
@@ -677,8 +681,14 @@ func _refresh_chant() -> void:
 		_chant_zone.anchor_left = clampf(window.x / span, 0.0, 1.0)
 		_chant_zone.anchor_right = clampf(window.y / span, 0.0, 1.0)
 	else:
-		_chant_title.text = "TYPED OVERCAST  ·  %s  ·  %d%%" % [spell.display_name().to_upper(), roundi(player.chant_accuracy() * 100.0)]
-		_chant_hint.text = "TYPE THE GOLD RUNES  ·  ENTER unleash  ·  ≥50%% = FIZZLE ×0.5  ·  hold %.1fs" % player.typed_charge_time()
+		var chant_title := "INCANTATION" if Game.cast_mode == Game.CAST_CHANT else "TYPED OVERCAST"
+		_chant_title.text = "%s  ·  %s  ·  %d%%" % [chant_title, spell.display_name().to_upper(), roundi(player.chant_accuracy() * 100.0)]
+		if Game.cast_mode != Game.CAST_CHANT:
+			_chant_hint.text = "TYPE THE GOLD RUNES  ·  ENTER unleash  ·  ≥50%% = FIZZLE ×0.5  ·  hold %.1fs" % player.typed_charge_time()
+		elif player.controller_chant:
+			_chant_hint.text = "A/B/X/Y ENTER WORDS IN ORDER  ·  BACK CANCEL  ·  START PAUSE  ·  hold %.1fs" % player.typed_charge_time()
+		else:
+			_chant_hint.text = "TYPE THE GOLD RUNES  ·  ENTER UNLEASH  ·  ESC CANCEL  ·  ≥50%% = FIZZLE ×0.5  ·  hold %.1fs" % player.typed_charge_time()
 		_chant_zone.visible = false
 		var target := spell.incantation()
 		var typed := player.chant_text.length()

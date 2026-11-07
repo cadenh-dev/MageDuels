@@ -122,9 +122,12 @@ func _render() -> void:
 	var data: Array = STEPS[step]
 	_title.text = "PREPARE" if step == 1 and Game.cast_mode == Game.CAST_CHANT else str(data[0])
 	if step == 1 and Game.cast_mode == Game.CAST_CHANT:
-		_body.text = "Press 1–4 to prepare, then type the ghost runes and press ENTER."
+		_body.text = "Hold LB and aim with RS, release to prepare. Press A/B/X/Y for each word. BACK cancels; START pauses." if Game.input_mode == "pad" else "Press 1–4 to prepare, then type the ghost runes and press ENTER. ESC cancels."
 	elif step == 3:
-		_body.text = "Type the gold runes and press ENTER. ESC cancels; direct hits interrupt. Hold RMB / LT for assisted overcast."
+		if Game.cast_mode == Game.CAST_CHANT:
+			_body.text = "Press A/B/X/Y for each word. BACK cancels; START pauses; direct hits interrupt. Hold LT for assisted overcast." if Game.input_mode == "pad" else "Type the gold runes and press ENTER. ESC cancels; direct hits interrupt. Hold RMB for assisted overcast."
+		else:
+			_body.text = "Type the gold runes and press ENTER. ESC cancels; direct hits interrupt. Hold RMB / LT for assisted overcast."
 	else:
 		_body.text = str(data[1])
 	_count.text = "%d/%d" % [step + 1, STEPS.size()]
