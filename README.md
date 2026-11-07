@@ -16,7 +16,9 @@ Made with Godot 4.7.2. Browser-first, procedural art, no external gameplay asset
 
 ## Play
 
-> Web build: _link TBD_
+> Web build: **TODO** — upload `dist/shiftcast-web.zip` to itch.io (see `docs/ITCH.md`).
+
+**Media:** cover, GIF, and screenshots live in [`docs/media/`](docs/media/).
 
 ### Controls
 
