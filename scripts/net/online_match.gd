@@ -437,11 +437,23 @@ func _collect_entities() -> Array:
 func _send_snapshot() -> void:
 	session.send_unreliable({"type": "snapshot", "epoch": epoch, "tick": server_tick,
 		"ack": drivers[1].last_frame, "event_ack": _remote_event_seq,
-		"w": [MatchState.wizard(wizards[0]), MatchState.wizard(wizards[1])], "entities": _collect_entities()})
+		"w": [MatchState.wizard_wire(wizards[0]), MatchState.wizard_wire(wizards[1])], "entities": _collect_entities()})
 
 func _snapshot(msg: Dictionary) -> void:
 	if wizards.is_empty() or int(msg["tick"]) <= snapshot_tick:
 		return
+	var wire_rows: Variant = msg.get("w", [])
+	if not wire_rows is Array or wire_rows.size() != 2:
+		return
+	var decoded: Array = []
+	for row in wire_rows:
+		if not row is Array:
+			return
+		var wizard_state := MatchState.wizard_unwire(row)
+		if wizard_state.is_empty():
+			return
+		decoded.append(wizard_state)
+	msg["w"] = decoded
 	snapshot_tick = int(msg["tick"])
 	last_event_ack = int(msg["event_ack"])
 	msg["received"] = Time.get_ticks_msec()

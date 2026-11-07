@@ -69,6 +69,11 @@ func _scenario(impaired: bool) -> void:
 	if not await _until(func() -> bool: return is_instance_valid(host_match) and is_instance_valid(client_match) and host_match.phase == "duel" and client_match.phase == "duel", "handshake and ready start real duel"):
 		await _cleanup()
 		return
+	var host_wire := _wire_transport(host_session.transport)
+	var client_wire := _wire_transport(client_session.transport)
+	var host_bytes_at_start := host_wire.bytes_sent
+	var client_bytes_at_start := client_wire.bytes_sent
+	var started_at := Time.get_ticks_msec()
 	_check("names and host cast mode negotiated", host_session.remote_name == "Guest" and client_session.remote_name == "Host" and client_session.cast_mode == "chant")
 	_check("online has no AI nodes", host_match.drivers.size() == 2 and client_match.drivers.is_empty())
 	if _ui:
@@ -145,6 +150,10 @@ func _scenario(impaired: bool) -> void:
 	host_match.command("rematch_vote")
 	await _until(func() -> bool: return host_match.phase == "duel" and client_match.phase == "duel", "two votes start rematch")
 	_check("rematch resets scores and boons", host_match.scores == [0, 0] and client_match.scores == [0, 0] and host_match.loadouts[0]["cards"].is_empty())
+	var elapsed := maxi(1, Time.get_ticks_msec() - started_at)
+	var host_sent := host_wire.bytes_sent - host_bytes_at_start
+	var client_sent := client_wire.bytes_sent - client_bytes_at_start
+	print("NET: bandwidth impaired=%s host_to_client=%d B/s client_to_host=%d B/s combined=%.1f KB/s (wire packet bytes; %.1f s)" % [impaired, host_sent * 1000 / elapsed, client_sent * 1000 / elapsed, float(host_sent + client_sent) * 1000.0 / elapsed / 1024.0, float(elapsed) / 1000.0])
 	if impaired:
 		_check("loss simulation dropped real unreliable packets", host_session.transport.dropped > 0 and client_session.transport.dropped > 0)
 	client_match.leave()
@@ -152,6 +161,12 @@ func _scenario(impaired: bool) -> void:
 	await _wait(0.15)
 	_check("disconnect leaves no arena or driver nodes", host_match.arena == null and host_match.drivers.is_empty() and host_match.wizards.is_empty() and get_tree().get_nodes_in_group("wizards").is_empty())
 	await _cleanup()
+
+func _wire_transport(transport: NetTransport) -> ENetTransport:
+	if transport is Impaired:
+		return transport.inner
+	return transport as ENetTransport
+
 
 func _cleanup() -> void:
 	if is_instance_valid(host_session): host_session.leave()

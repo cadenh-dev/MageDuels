@@ -35,6 +35,40 @@ static func wizard(w: Wizard) -> Dictionary:
 		"shield": w.shield_hp, "shield_max": w.shield_max,
 		"slow": w.slow_time, "slow_amount": w.slow_amount, "stun": w.stun_time}
 
+## Compact snapshot row. Coordinates and timers are fixed point, while flags
+## share one integer. The decoder restores the stable dictionary used by the
+## presentation code; this keeps the backend seam independent of the codec.
+static func wizard_wire(w: Wizard) -> Array:
+	var flags := 0
+	flags |= 1 if w.alive else 0
+	flags |= 2 if w.chanting else 0
+	flags |= 4 if w.chanting or w.stun_time > 0.0 else 0
+	flags |= 8 if w.assisted_chant else 0
+	return [roundi(w.global_position.x * 100.0), roundi(w.global_position.z * 100.0),
+		roundi(w.velocity.x * 100.0), roundi(w.velocity.z * 100.0),
+		roundi(w.aim_point.x * 100.0), roundi(w.aim_point.y * 100.0), roundi(w.aim_point.z * 100.0),
+		roundi(w.hp * 10.0), roundi(w.mana * 10.0), flags, w.page, w.selected_slot,
+		w.chant_slot, roundi(w.chant_elapsed * 100.0), w.chant_best, w.chant_typos,
+		roundi(w.chant_progress() * 1000.0), roundi(w.shield_hp * 10.0), roundi(w.shield_max * 10.0),
+		roundi(w.slow_time * 100.0), roundi(w.slow_amount * 1000.0), roundi(w.stun_time * 100.0),
+		w.chant_text]
+
+static func wizard_unwire(row: Array) -> Dictionary:
+	if row.size() != 23:
+		return {}
+	var flags := int(row[9])
+	return {"pos": Vector3(float(row[0]) / 100.0, 0.0, float(row[1]) / 100.0),
+		"vel": Vector3(float(row[2]) / 100.0, 0.0, float(row[3]) / 100.0),
+		"aim": Vector3(float(row[4]) / 100.0, float(row[5]) / 100.0, float(row[6]) / 100.0),
+		"hp": float(row[7]) / 10.0, "mana": float(row[8]) / 10.0, "alive": flags & 1 != 0,
+		"page": int(row[10]), "slot": int(row[11]), "rooted": flags & 4 != 0,
+		"chant": flags & 2 != 0, "cs": int(row[12]), "elapsed": float(row[13]) / 100.0,
+		"best": int(row[14]), "typos": int(row[15]), "assist": flags & 8 != 0,
+		"progress": float(row[16]) / 1000.0, "shield": float(row[17]) / 10.0,
+		"shield_max": float(row[18]) / 10.0, "slow": float(row[19]) / 100.0,
+		"slow_amount": float(row[20]) / 1000.0, "stun": float(row[21]) / 100.0,
+		"text": str(row[22])}
+
 static func apply(w: Wizard, data: Dictionary, preserve_echo: bool = false) -> void:
 	var chant_changed := w.chanting != bool(data["chant"]) or w.chant_text != str(data["text"])
 	w.hp = float(data["hp"])

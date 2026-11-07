@@ -11,6 +11,8 @@ var _remote := 0
 const CHUNK_BYTES := 1100
 var _packet_seq := 0
 var _parts: Dictionary = {}
+var bytes_sent := 0
+var bytes_received := 0
 static var _local_lobbies: Dictionary = {}
 
 func host(options: Dictionary) -> void:
@@ -90,6 +92,7 @@ func _process(_delta: float) -> void:
 		var sender := peer.get_packet_peer()
 		var lane := int(peer.get_packet_mode())
 		var bytes := peer.get_packet()
+		bytes_received += bytes.size()
 		if sender != _remote or bytes.size() > MAX_PACKET:
 			continue
 		bytes = _decode_packet(bytes, lane)
@@ -124,6 +127,7 @@ func _send(msg: Dictionary, reliable: bool) -> void:
 		packet.encode_u32(8, bytes.size())
 		packet.append_array(bytes.slice(part * CHUNK_BYTES, mini((part + 1) * CHUNK_BYTES, bytes.size())))
 		peer.put_packet(packet)
+		bytes_sent += packet.size()
 
 func _decode_packet(packet: PackedByteArray, lane: int) -> PackedByteArray:
 	if packet.size() < 13 or packet.size() > CHUNK_BYTES + 12:
