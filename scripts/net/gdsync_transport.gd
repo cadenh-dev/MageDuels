@@ -184,9 +184,7 @@ func list_public_lobbies() -> Array:
 	if not GDSync.is_active():
 		_ensure_connected()
 		await GDSync.connected
-	var result: Array = await _request_lobbies()
-	lobby_list_updated.emit(result)
-	return result
+	return _format_lobbies(await _request_lobbies())
 
 func _request_lobbies() -> Array:
 	var received := {"lobbies": []}
@@ -197,13 +195,20 @@ func _request_lobbies() -> Array:
 	return received["lobbies"]
 
 func _on_lobbies_received(values: Array) -> void:
+	lobby_list_updated.emit(_format_lobbies(values))
+
+func _format_lobbies(values: Array) -> Array:
 	var result: Array = []
-	for lobby: Dictionary in values:
+	for value in values:
+		if not value is Dictionary:
+			continue
+		var lobby: Dictionary = value
 		var tags: Dictionary = lobby.get("Tags", {})
 		if int(tags.get("protocol", -1)) != PROTOCOL or str(tags.get("state", "")) != "waiting" or int(lobby.get("PlayerCount", 0)) != 1:
 			continue
 		result.append({"code": str(lobby.get("Name", "")), "host_name": str(tags.get("host_name", lobby.get("Host", "Wizard"))),
 			"players": int(lobby.get("PlayerCount", 0)), "cast_mode": str(tags.get("cast_mode", "chant"))})
+	return result
 
 func _random_code() -> String:
 	var code := ""
