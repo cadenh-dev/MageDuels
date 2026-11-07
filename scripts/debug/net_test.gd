@@ -169,9 +169,12 @@ func _scenario(impaired: bool) -> void:
 	_check("client snapshot carries primed state", client_match.wizards[1].primed_slot == 0 and client_match.wizards[1].primed_remaining > 0.0)
 	client_match.command("release", {"aim": Vector3(-3, 0, 0)})
 	await _until(func() -> bool: return host_match.wizards[0].hp < before, "remote chant produces host-side damaging cast")
-	await _wait(3.2) # Let the authoritative burn finish before comparing exact HP.
+	# Ember Dart leaves a 2.5 s fire patch that refreshes a 3 s burn: let both
+	# finish before comparing exact HP.
+	await _wait(6.2)
 	_check("cast outcome reliably reaches guest", client_match.received_casts == host_match.received_casts and client_match.received_casts > 0)
 	_check("authoritative HP agrees", is_equal_approx(host_match.wizards[0].hp, client_match.wizards[0].hp))
+	await _spellcraft_replication()
 	var accepted := host_match.drivers[1].last_frame
 	host_match.drivers[1].frame({"seq": accepted + 1, "move": Vector2(INF, 0), "aim": Vector3.ZERO})
 	_check("non-finite movement rejected", host_match.drivers[1].last_frame == accepted)
@@ -222,6 +225,78 @@ func _scenario(impaired: bool) -> void:
 	await _wait(0.15)
 	_check("disconnect leaves no arena or driver nodes", host_match.arena == null and host_match.drivers.is_empty() and host_match.wizards.is_empty() and get_tree().get_nodes_in_group("wizards").is_empty())
 	await _cleanup()
+
+## Zones, non-solid wards and HP walls: spawn, HP change, despawn, and solid
+## wards blocking the guest's predicted movement like the host's.
+func _spellcraft_replication() -> void:
+	var host_arena := host_match.arena
+	var client_arena := client_match.arena
+	var caster := host_match.wizards[0]
+	var wand := SpellData.wand("apprentice")
+	var zone := host_arena.spawn_zone({"owner": caster, "element": "fire", "shape": "band", "position": Vector3(-1, 0, -2),
+		"inner": 1.0, "radius": 1.6, "duration": 30.0, "dps": 0.0})
+	await _until(func() -> bool: return _client_zone() != null, "zone spawns on the client")
+	var cz := _client_zone()
+	_check("client zone keeps shape, element and size", cz != null and cz.shape == "band" and cz.element == "fire" and is_equal_approx(cz.radius, 1.6) and is_equal_approx(cz.inner, 1.0))
+	_check("client zone is presentation only", cz != null and not cz.authority)
+	var sheet := _host_ward(host_arena, caster, "fire", Vector3(-1, 0, 2), wand)
+	await _until(func() -> bool: return _client_wall("fire") != null, "non-solid ward spawns on the client")
+	var cw := _client_wall("fire")
+	_check("client Flame Sheet has no collision", cw != null and cw.collision_layer == 0 and not cw.authority)
+	var stone := _host_ward(host_arena, caster, "earth", Vector3(1.4, 0, 0), wand)
+	await _until(func() -> bool: return _client_wall("earth") != null, "HP wall spawns on the client")
+	var cs := _client_wall("earth")
+	_check("client Stone Wall sits on the wall layer", cs != null and cs.collision_layer == Wizard.WALL_LAYER and is_equal_approx(cs.max_hp, 60.0))
+	stone.damage_wall(10.0, "storm")
+	await _until(func() -> bool: return cs != null and is_instance_valid(cs) and is_equal_approx(cs.hp, stone.hp), "wall HP change reaches the client")
+	# The guest walks into the Stone Wall: host and predicted client both stop.
+	var guest_host := host_match.wizards[1]
+	var guest_client := client_match.wizards[1]
+	client_match.set_input(Vector2(-1, 0), Vector3(-3, 0, 0))
+	await _wait(1.2)
+	client_match.set_input(Vector2.ZERO, Vector3(-3, 0, 0))
+	_check("Stone Wall blocks the guest on the host", guest_host.position.x > 1.5)
+	_check("Stone Wall blocks the guest's predicted movement", guest_client.position.x > 1.5)
+	await _wait(0.4)
+	_check("prediction agrees with host at the wall", guest_host.position.distance_to(guest_client.position) < 0.3)
+	stone.shatter()
+	sheet.queue_free()
+	zone.queue_free()
+	await _until(func() -> bool: return _client_wall("earth") == null and _client_wall("fire") == null and _client_zone() == null, "wards and zones despawn on the client")
+	_check("no stale static entities", client_match._static_entities.is_empty())
+	guest_host.position = Vector3(3, 0, 0)
+	await _wait(0.5)
+
+
+func _host_ward(host_arena: Arena, caster: Wizard, element: String, at: Vector3, wand: Dictionary) -> SpellWall:
+	var spell := SpellDef.new(element, "wall")
+	var stats := spell.resolved_stats(wand, false)
+	stats["duration"] = 30.0
+	var wall := SpellWall.new()
+	wall.setup_ward({"arena": host_arena, "owner": caster, "element": element, "stats": stats})
+	host_arena.walls.add_child(wall)
+	wall.global_position = at
+	wall.rotation.y = atan2(1.0, 0.0)
+	return wall
+
+
+func _client_zone() -> SpellZone:
+	if client_match == null or client_match.arena == null:
+		return null
+	for z in client_match.arena.zones.get_children():
+		if z is SpellZone and not z.is_queued_for_deletion():
+			return z
+	return null
+
+
+func _client_wall(element: String) -> SpellWall:
+	if client_match == null or client_match.arena == null:
+		return null
+	for w in client_match.arena.walls.get_children():
+		if w is SpellWall and w.element == element and not w.is_queued_for_deletion():
+			return w
+	return null
+
 
 func _wire_transport(transport: NetTransport) -> ENetTransport:
 	if transport is Impaired:

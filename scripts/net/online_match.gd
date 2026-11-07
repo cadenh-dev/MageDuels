@@ -496,6 +496,8 @@ func _collect_entities() -> Array:
 	for container in [arena.walls, arena.zones]:
 		for i in container.get_child_count():
 			var node := container.get_child(i) as Node3D
+			if not (node is SpellWall or node is SpellZone):
+				continue
 			if node.is_queued_for_deletion() or (node is SpellWall and node.broken):
 				continue
 			var id := node.get_instance_id()
@@ -582,6 +584,7 @@ func _spawn_entity(data: Dictionary) -> void:
 		# Presentation only: no damage ticks, no HP logic. Solid wards still
 		# sit on the wall layer so predicted movement collides like the host.
 		node = MatchState.build_static(data, wizards)
+		node.set("arena", arena)
 		(arena.walls if data["kind"] == "wall" else arena.zones).add_child(node)
 		_static_entities[data["id"]] = true
 	_entities[data["id"]] = node

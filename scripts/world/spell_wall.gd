@@ -182,8 +182,8 @@ func use_reflection() -> void:
 
 
 func _vanish(amount: int) -> void:
-	var parent := get_parent()
-	if parent != null:
+	var parent: Node = arena.effects if arena != null and is_instance_valid(arena) else get_parent()
+	if parent != null and parent.is_inside_tree():
 		Fx.burst(parent, global_position + Vector3.UP * 1.0, color, amount, 5.0, 0.09, 0.45)
 	collision_layer = 0
 	set_physics_process(false)
