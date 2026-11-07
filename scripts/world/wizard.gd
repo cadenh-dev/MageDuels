@@ -668,6 +668,7 @@ func _prime_chant() -> void:
 	_primed_check = check
 	primed_slot = chant_slot
 	primed_remaining = PRIMED_LIMIT
+	_set_primed_tint(check["spell"], true)
 	mana = maxf(0.0, mana - float(check["stats"]["mana"]))
 	mana_changed.emit(self, mana, max_mana)
 	chanting = false
@@ -685,11 +686,13 @@ func release_primed() -> bool:
 	if primed_slot < 0:
 		return false
 	var slot := primed_slot
+	var spell := current_spell(slot)
 	var check := _primed_check
 	primed_slot = -1
 	primed_remaining = 0.0
 	_primed_check = {}
 	_set_chant_fx(false)
+	_set_primed_tint(spell, false)
 	# Mana was paid when the spell primed.
 	check["stats"]["mana"] = 0.0
 	_do_cast(slot, true, check)
@@ -699,10 +702,12 @@ func release_primed() -> bool:
 func discard_primed() -> void:
 	if primed_slot < 0:
 		return
+	var spell := current_spell(primed_slot)
 	primed_slot = -1
 	primed_remaining = 0.0
 	_primed_check = {}
 	_set_chant_fx(false)
+	_set_primed_tint(spell, false)
 	Fx.burst(get_parent(), global_position + Vector3.UP * 1.3, wand.get("color", Color.WHITE), 10, 2.4, 0.05, 0.25)
 	chant_changed.emit(self, false)
 
@@ -1090,6 +1095,18 @@ func _set_chant_fx(active: bool) -> void:
 		_chant_label.visible = active
 	if _crystal != null and not active:
 		_crystal.scale = Vector3.ONE
+
+
+func _set_primed_tint(spell: SpellDef, active: bool) -> void:
+	var color: Color = wand.get("color", Color("ffd166"))
+	if active and spell != null:
+		color = SpellData.ELEMENTS.get(spell.element, {}).get("color", color)
+	if _chant_ring != null:
+		_chant_ring.material_override = Fx.glow_material(color if active else Color("ffd166"), 3.0)
+	if _staff_light != null:
+		_staff_light.light_color = color
+		if not active:
+			_staff_light.light_energy = 0.9
 
 
 func _update_bars() -> void:

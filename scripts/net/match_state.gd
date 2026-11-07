@@ -100,6 +100,9 @@ static func apply(w: Wizard, data: Dictionary, preserve_echo: bool = false, pres
 		w._set_chant_fx(w.chanting)
 		if w.primed_slot >= 0:
 			w._set_chant_fx(true)
+			w._set_primed_tint(w.current_spell(w.primed_slot), true)
+		else:
+			w._set_primed_tint(null, false)
 		var spell := w.current_spell(w.chant_slot)
 		if w.chanting and spell != null:
 			w._chant_label.text = spell.display_name().to_upper()
