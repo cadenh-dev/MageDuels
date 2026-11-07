@@ -63,11 +63,16 @@ try {
   const codeTime = await waitFor(() => consoleLogs.A.some(line => /lobby_create.*code=([A-Z2-9]{5})/.test(line)), 'host room code');
   const codeLine = consoleLogs.A.find(line => /lobby_create.*code=([A-Z2-9]{5})/.test(line));
   const code = codeLine.match(/lobby_create.*code=([A-Z2-9]{5})/)[1];
-  // Leave the host page in the background while the second isolated context joins.
+  // Freeze the host renderer for the lobby wait, as a fully backgrounded tab can be.
+  const hostCdp = await contexts[0].newCDPSession(pages[0]);
+  await hostCdp.send('Page.setWebLifecycleState', { state: 'frozen' });
   await pages[1].bringToFront();
   await pages[1].mouse.click(595, 375);
   await pages[1].keyboard.type(code, { delay: 90 });
   await click(pages[1], 917, 375);
+  await pages[1].waitForTimeout(1500);
+  await hostCdp.send('Page.setWebLifecycleState', { state: 'active' });
+  console.log('Host renderer resumed after 1.5s frozen lobby wait');
   const matchTime = await waitFor(() => consoleLogs.A.some(x => x.includes('session match started')) && consoleLogs.B.some(x => x.includes('session match started')), 'both match starts');
   result = 'pass';
   await screenshot('match');
