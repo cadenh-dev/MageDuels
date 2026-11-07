@@ -52,6 +52,9 @@ func _ready() -> void:
 	if "--gdsync-duel-host" in args or "--gdsync-duel-join" in args:
 		await _run_gdsync_duel("--gdsync-duel-host" in args)
 		return
+	if "--gdsync-ui-host" in args or "--gdsync-ui-join" in args or "--gdsync-ui-bad-code" in args:
+		await _run_gdsync_ui_test()
+		return
 	if "--net-host" in args or "--net-join" in args:
 		await _boot()
 		show_online()
@@ -256,6 +259,8 @@ func _online_finished(reason: String) -> void:
 func _online_disconnected(reason: String) -> void:
 	# A match handles its own teardown; pre-match failures return here directly.
 	if not is_instance_valid(online_match):
+		if is_instance_valid(current_screen) and current_screen is OnlineScreen:
+			return
 		menu_notice = reason
 		show_menu()
 
@@ -367,6 +372,95 @@ func _run_gdsync_duel(hosting: bool) -> void:
 	var elapsed_ms := maxi(1, Time.get_ticks_msec() - started)
 	var sent := transport.bytes_sent - sent_start
 	print("GDSYNC DUEL %s: sent=%d B (%.1f B/s), received=%d B, RTT=%d ms, phase=%s, duration=%.1f s" % ["HOST" if hosting else "JOIN", sent, float(sent) * 1000.0 / elapsed_ms, transport.bytes_received, NetSession.rtt_ms, online_match.phase if is_instance_valid(online_match) else "ended", float(elapsed_ms) / 1000.0])
+	NetSession.leave()
+	if FileAccess.file_exists(code_path):
+		DirAccess.remove_absolute(ProjectSettings.globalize_path(code_path))
+	get_tree().quit(0)
+
+func _run_gdsync_ui_test() -> void:
+	await _boot()
+	show_online()
+	await get_tree().process_frame
+	var screen := current_screen as OnlineScreen
+	if screen == null:
+		print("GDSYNC UI FAIL: Online screen was not created")
+		get_tree().quit(1)
+		return
+	var code_path := "user://gdsync_ui_code.txt"
+	var is_hosting := "--gdsync-ui-host" in OS.get_cmdline_user_args()
+	var bad_code := "--gdsync-ui-bad-code" in OS.get_cmdline_user_args()
+	var deadline := Time.get_ticks_msec() + 26000
+	if is_hosting:
+		var host_button := screen.find_child("HostPrivateButton", true, false) as Button
+		while host_button != null and host_button.disabled and Time.get_ticks_msec() < deadline:
+			await get_tree().process_frame
+		if host_button == null or host_button.disabled:
+			print("GDSYNC UI HOST FAIL: host button never became ready; status=%s" % screen.find_child("OnlineStatus", true, false).text)
+			get_tree().quit(1)
+			return
+		host_button.pressed.emit()
+		var status_label := screen.find_child("OnlineStatus", true, false) as Label
+		var code := ""
+		while code.is_empty() and Time.get_ticks_msec() < deadline:
+			var lines := status_label.text.split("\n")
+			if lines.size() > 1:
+				code = str(lines[1]).split("  · ")[0].strip_edges()
+			await get_tree().process_frame
+		if code.is_empty():
+			print("GDSYNC UI HOST FAIL: code label stayed empty; status=%s" % status_label.text)
+			NetSession.leave()
+			get_tree().quit(1)
+			return
+		var code_file := FileAccess.open(code_path, FileAccess.WRITE)
+		if code_file == null:
+			print("GDSYNC UI HOST FAIL: could not publish lobby code")
+			NetSession.leave()
+			get_tree().quit(1)
+			return
+		code_file.store_string(code)
+		code_file.close()
+	elif bad_code:
+		var field := screen.find_child("RoomCodeField", true, false) as LineEdit
+		field.text = "NO-SUCH-ROOM"
+		(screen.find_child("JoinButton", true, false) as Button).pressed.emit()
+	else:
+		var code := ""
+		while code.is_empty() and Time.get_ticks_msec() < deadline:
+			if FileAccess.file_exists(code_path):
+				var code_file := FileAccess.open(code_path, FileAccess.READ)
+				if code_file != null:
+					code = code_file.get_as_text().strip_edges()
+			await get_tree().create_timer(0.1).timeout
+		if code.is_empty():
+			print("GDSYNC UI JOIN FAIL: host code did not arrive")
+			get_tree().quit(1)
+			return
+		var field := screen.find_child("RoomCodeField", true, false) as LineEdit
+		field.text = code.to_lower() + "  "
+		(screen.find_child("JoinButton", true, false) as Button).pressed.emit()
+		if field.text != code:
+			print("GDSYNC UI JOIN FAIL: code was not normalized: %s" % field.text)
+			get_tree().quit(1)
+			return
+	var entered := await _wait_probe(func() -> bool:
+		if bad_code:
+			return NetSession.state == OnlineSession.State.DISCONNECTED
+		return NetSession.state == OnlineSession.State.IN_MATCH and is_instance_valid(online_match) and online_match.round_index == 0 and online_match.phase in ["loading", "duel"]
+	, 26000)
+	if bad_code:
+		var readable := NetSession.status.contains("not found") or NetSession.status.contains("timed out") or NetSession.status.contains("failed")
+		print("GDSYNC UI BAD CODE %s: status=%s" % ["PASS" if entered and readable else "FAIL", NetSession.status])
+		NetSession.leave()
+		get_tree().quit(0 if entered and readable else 1)
+		return
+	if not entered:
+		var transport := NetSession.transport as GDSyncTransport
+		print("GDSYNC UI %s FAIL: state=%d status=%s code=%s peers=%d sent=%d received=%d" % ["HOST" if is_hosting else "JOIN", NetSession.state, NetSession.status, NetSession.room_code, transport.peer_join_events, transport.bytes_sent, transport.bytes_received])
+		NetSession.leave()
+		get_tree().quit(1)
+		return
+	print("GDSYNC UI %s PASS: state=IN_MATCH phase=%s round=%d code=%s" % ["HOST" if is_hosting else "JOIN", online_match.phase, online_match.round_index, NetSession.room_code])
+	await get_tree().create_timer(0.5).timeout
 	NetSession.leave()
 	if FileAccess.file_exists(code_path):
 		DirAccess.remove_absolute(ProjectSettings.globalize_path(code_path))

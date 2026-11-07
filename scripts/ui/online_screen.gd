@@ -7,6 +7,8 @@ var _code: LineEdit
 var _status: Label
 var _lobbies: VBoxContainer
 var _actions: HBoxContainer
+var _host_buttons: Array[Button] = []
+var _join_button: Button
 
 func _ready() -> void:
 	set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT)
@@ -30,20 +32,25 @@ func _ready() -> void:
 	box.add_child(_actions)
 	for public in [true, false]:
 		var button := UIKit.button("HOST PUBLIC" if public else "HOST PRIVATE", 18)
+		button.name = "HostPublicButton" if public else "HostPrivateButton"
 		button.pressed.connect(func() -> void:
 			NetSession.leave()
 			NetSession.host({"public": public, "host_name": Game.player_name, "cast_mode": Game.cast_mode})
 		)
 		_actions.add_child(button)
+		_host_buttons.append(button)
 	var row := HBoxContainer.new()
 	box.add_child(row)
 	_code = LineEdit.new()
-	_code.placeholder_text = "Room code / IP:port"
+	_code.name = "RoomCodeField"
+	_code.placeholder_text = "Room code"
 	_code.size_flags_horizontal = Control.SIZE_EXPAND_FILL
 	row.add_child(_code)
-	var join_button := UIKit.button("JOIN", 18)
-	join_button.pressed.connect(func() -> void: _join(_code.text))
-	row.add_child(join_button)
+	_join_button = UIKit.button("JOIN", 18)
+	_join_button.name = "JoinButton"
+	_join_button.pressed.connect(func() -> void: _join(_code.text))
+	_code.text_submitted.connect(_join)
+	row.add_child(_join_button)
 	var refresh := UIKit.ghost_button("REFRESH PUBLIC LOBBIES", 17)
 	refresh.pressed.connect(_refresh)
 	box.add_child(refresh)
@@ -53,6 +60,7 @@ func _ready() -> void:
 	_lobbies = VBoxContainer.new()
 	scroll.add_child(_lobbies)
 	_status = UIKit.label("", 17, UIKit.GOLD)
+	_status.name = "OnlineStatus"
 	_status.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
 	box.add_child(_status)
 	var cancel := UIKit.ghost_button("CANCEL", 18)
@@ -65,10 +73,26 @@ func _ready() -> void:
 	NetSession.state_changed.connect(_update_status)
 	_update_status()
 	_refresh()
+	_process(0.0)
+
+func _process(_delta: float) -> void:
+	var transport := NetSession.transport
+	var ready := not (transport is GDSyncTransport) or (transport as GDSyncTransport).backend_ready
+	var busy := NetSession.state in [OnlineSession.State.JOINING, OnlineSession.State.HOSTING_WAITING, OnlineSession.State.IN_LOBBY, OnlineSession.State.IN_MATCH]
+	for button in _host_buttons:
+		button.disabled = not ready or busy
+	_join_button.disabled = busy
+	if not ready and NetSession.state == OnlineSession.State.IDLE:
+		_status.text = "Connecting to server…"
 
 func _join(code: String) -> void:
+	var normalized := code.strip_edges().to_upper()
+	_code.text = normalized
+	if normalized.is_empty():
+		_status.text = "Enter a room code."
+		return
 	NetSession.leave()
-	NetSession.join(code, Game.player_name)
+	NetSession.join(normalized, Game.player_name)
 
 func _refresh() -> void:
 	var lobbies := await NetSession.transport.list_public_lobbies()
@@ -83,10 +107,16 @@ func _refresh() -> void:
 		button.pressed.connect(func() -> void: _join(str(lobby["code"])))
 		_lobbies.add_child(button)
 	if lobbies.is_empty():
-		_lobbies.add_child(UIKit.label("No local lobbies. Join another desktop by IP:port.", 16, UIKit.MUTED))
+		var empty_text := "No open public duels — host one!" if NetSession.transport is GDSyncTransport else "No local lobbies. Join another desktop by IP:port."
+		_lobbies.add_child(UIKit.label(empty_text, 16, UIKit.MUTED))
 
 func _update_status() -> void:
-	_status.text = "%s\n%s  ·  %d ms" % [NetSession.status, NetSession.room_code, NetSession.rtt_ms]
+	var ping := "—" if NetSession.rtt_ms <= 0 else "%d ms" % NetSession.rtt_ms
+	_status.text = NetSession.status
+	if not NetSession.room_code.is_empty():
+		_status.text += "\n%s  ·  %s" % [NetSession.room_code, ping]
+	elif NetSession.rtt_ms > 0:
+		_status.text += "\n%s" % ping
 	if NetSession.transport is ENetTransport:
 		_status.text += "\nDesktop ENet: share your reachable IP:port. Public listing is local only."
 

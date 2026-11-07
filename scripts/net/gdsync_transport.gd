@@ -22,6 +22,7 @@ var bytes_received := 0
 var peer_join_events := 0
 var _known_host_id := -1
 var _peer_notified := false
+var backend_ready := false
 
 func _bind_signals() -> void:
 	if _bound:
@@ -77,6 +78,7 @@ func join(code: String) -> void:
 
 func _on_connected() -> void:
 	_starting = false
+	backend_ready = true
 	if _connection_ready:
 		return
 	_connection_ready = true
@@ -87,6 +89,7 @@ func _on_connected() -> void:
 
 func _on_connection_failed(error: int) -> void:
 	_starting = false
+	backend_ready = false
 	failed.emit(_connection_error(error))
 
 func _on_disconnected() -> void:
@@ -272,6 +275,7 @@ func leave() -> void:
 	_peer_notified = false
 	_hosting = false
 	_starting = false
+	backend_ready = false
 	_connection_ready = false
 	room_code = ""
 	_leaving = false

@@ -8,7 +8,7 @@ signal disconnected(reason: String)
 
 enum State { IDLE, HOSTING_WAITING, JOINING, IN_LOBBY, IN_MATCH, DISCONNECTED }
 const PROTOCOL := 1
-const TIMEOUT_MS := 10000
+const TIMEOUT_MS := 12000
 var state := State.IDLE
 var transport: NetTransport
 var room_code := ""
@@ -46,7 +46,7 @@ func prepare_online() -> void:
 	if transport == null:
 		var args := OS.get_cmdline_user_args()
 		var cli_enet := "--net-host" in args or "--net-join" in args
-		var relay_cli := "--gdsync-probe" in args or "--gdsync-duel-host" in args or "--gdsync-duel-join" in args
+		var relay_cli := "--gdsync-probe" in args or "--gdsync-duel-host" in args or "--gdsync-duel-join" in args or "--gdsync-ui-host" in args or "--gdsync-ui-join" in args
 		var use_enet := cli_enet or (OS.has_feature("headless") and not relay_cli)
 		var script := "res://scripts/net/enet_transport.gd" if use_enet else "res://scripts/net/gdsync_transport.gd"
 		use_transport(load(script).new())
