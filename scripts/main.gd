@@ -488,9 +488,10 @@ func _unhandled_input(event: InputEvent) -> void:
 			player.begin_chant(_chant_wheel_slot, false, true)
 		get_viewport().set_input_as_handled()
 		return
-	# Start remains available while chanting. Back is a dedicated controller
-	# cancel button so all four face buttons remain available for word entry.
-	if event.is_action_pressed("pause") and (player == null or not is_instance_valid(player) or not player.chanting or event is InputEventJoypadButton):
+	# Start remains available during CHANT_ONLY controller chants. Back is a
+	# dedicated cancel button so all four face buttons remain for word entry.
+	var chant_pad_pause := Game.cast_mode == Game.CAST_CHANT and event is InputEventJoypadButton
+	if event.is_action_pressed("pause") and (player == null or not is_instance_valid(player) or not player.chanting or chant_pad_pause):
 		if duel_active:
 			_toggle_pause()
 			get_viewport().set_input_as_handled()

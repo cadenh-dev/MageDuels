@@ -130,10 +130,14 @@ func run(p_main: Node) -> int:
 	start.button_index = JOY_BUTTON_START
 	start.pressed = true
 	main._unhandled_input(start)
-	_check("Start pauses during controller chant", main.is_paused)
-	_check("pause closes spell wheel", not main._chant_wheel_open and not main.hud._spell_wheel.visible)
-	main._unhandled_input(start)
-	_check("Start resumes after controller chant pause", not main.is_paused)
+	if Game.cast_mode == Game.CAST_CHANT:
+		_check("Start pauses during controller chant", main.is_paused)
+		_check("pause closes spell wheel", not main._chant_wheel_open and not main.hud._spell_wheel.visible)
+		main._unhandled_input(start)
+		_check("Start resumes after controller chant pause", not main.is_paused)
+	else:
+		_check("classic controller chant input routing is unchanged", not main.is_paused and main._chant_wheel_open)
+		main._clear_chant_wheel()
 	p.cancel_chant()
 
 	if Game.cast_mode == Game.CAST_CHANT:
