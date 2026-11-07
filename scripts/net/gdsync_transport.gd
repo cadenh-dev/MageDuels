@@ -50,13 +50,18 @@ func _ensure_connected() -> void:
 		GDSync.start_multiplayer()
 
 func host(options: Dictionary) -> void:
-	leave()
+	_prepare_lobby_request()
 	_hosting = true
 	_requested_options = options.duplicate(true)
 	_create_attempts = 0
 	_create_retry_pending = false
 	_create_retry_generation += 1
-	_ensure_connected()
+	if GDSync.is_active():
+		_connection_ready = true
+		_create_lobby()
+	else:
+		_connection_ready = false
+		_ensure_connected()
 
 func _create_lobby() -> void:
 	if not _hosting or not GDSync.is_active():
@@ -71,10 +76,28 @@ func _create_lobby() -> void:
 	GDSync.lobby_create(room_code, "", bool(_requested_options.get("public", false)), 2, tags)
 
 func join(code: String) -> void:
-	leave()
+	_prepare_lobby_request()
 	_hosting = false
 	_requested_code = code.strip_edges().to_upper()
-	_ensure_connected()
+	if GDSync.is_active():
+		_connection_ready = true
+		GDSync.lobby_join(_requested_code)
+	else:
+		_connection_ready = false
+		_ensure_connected()
+
+func _prepare_lobby_request() -> void:
+	if _in_lobby and GDSync.is_active():
+		GDSync.lobby_leave()
+	_in_lobby = false
+	_requested_code = ""
+	_requested_options.clear()
+	_create_retry_pending = false
+	_create_retry_generation += 1
+	_known_host_id = -1
+	_peer_notified = false
+	room_code = ""
+	backend_ready = GDSync.is_active()
 
 func _on_connected() -> void:
 	_starting = false
