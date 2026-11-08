@@ -670,7 +670,8 @@ func _unhandled_input(event: InputEvent) -> void:
 		return
 	if event.is_action_released("assist_chant") and w.assisted_chant:
 		command("unleash")
-	elif w.primed_slot >= 0 and event.is_action_pressed("pause"):
+	elif w.primed_slot >= 0 and not paused and ((event.is_action_pressed("pause") and not event is InputEventJoypadButton) or (event is InputEventJoypadButton and event.is_pressed() and event.button_index == JOY_BUTTON_BACK)):
+		# Esc / Back discard a primed spell; Start on a pad still pauses.
 		command("chant_cancel")
 	elif event.is_action_pressed("pause") and (not w.chanting or paused):
 		_toggle_pause()
@@ -690,8 +691,6 @@ func _unhandled_input(event: InputEvent) -> void:
 	elif w.primed_slot >= 0:
 		if event.is_action_pressed("release") or event.is_action_pressed("cast_mouse") or event.is_action_pressed("chant") or event.is_action_pressed("confirm"):
 			command("release", {"aim": _local_aim})
-		elif event.is_action_pressed("pause"):
-			command("chant_cancel")
 		elif event.is_action_pressed("swap_page"):
 			command("page_swap")
 	elif not w.chanting:

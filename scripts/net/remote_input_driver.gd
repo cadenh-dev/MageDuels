@@ -66,8 +66,16 @@ static func apply(w: Wizard, msg: Dictionary, echo: bool = false) -> void:
 			if not echo:
 				if w.assisted_chant:
 					w.assist_release()
-				else:
+				elif w.chanting:
 					w.chant_finish()
+				elif w.primed_slot >= 0:
+					# The guest clicked while its last snapshot still showed the
+					# chant, but the host had already auto-primed: that click is
+					# a release, not a lost input.
+					var unleash_aim: Variant = msg.get("aim", null)
+					if unleash_aim is Vector3 and unleash_aim.is_finite():
+						w.set_aim_world(unleash_aim)
+					w.release_primed()
 		"release":
 			var aim: Variant = msg.get("aim", null)
 			if aim is Vector3 and aim.is_finite():

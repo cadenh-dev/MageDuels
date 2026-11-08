@@ -26,6 +26,10 @@ func run(p_main: Node) -> int:
 	p.input_enabled = true
 	p.cast_fired.connect(_on_cast)
 	main.ai.active = false
+	# Many test releases hit the rival; it must survive them all, or the round
+	# ends and tears the duel down mid-test.
+	main.enemy.max_hp = 9999.0
+	main.enemy.hp = 9999.0
 	main.duel_active = true
 	main.round_running = true
 
@@ -96,6 +100,34 @@ func run(p_main: Node) -> int:
 	_send_key(KEY_ESCAPE, KEY_ESCAPE, 0)
 	await get_tree().process_frame
 	_check("Escape discards a primed spell", p.primed_slot < 0)
+	# Pad: Start pauses with a spell loaded (it must not discard it), Back discards.
+	p.mana = p.max_mana
+	p.begin_chant(0)
+	for ch in incant:
+		p.chant_key(ch)
+	await get_tree().create_timer(p.typed_charge_time() + 0.1, false).timeout
+	var pad_start := InputEventJoypadButton.new()
+	pad_start.button_index = JOY_BUTTON_START
+	pad_start.pressed = true
+	main._unhandled_input(pad_start)
+	_check("pad Start pauses while primed and keeps the spell", main.is_paused and p.primed_slot == 0)
+	main._unhandled_input(pad_start)
+	_check("pad Start resumes with the spell still primed", not main.is_paused and p.primed_slot == 0)
+	var pad_back := InputEventJoypadButton.new()
+	pad_back.button_index = JOY_BUTTON_BACK
+	pad_back.pressed = true
+	main._unhandled_input(pad_back)
+	_check("pad Back discards a primed spell", p.primed_slot < 0)
+	# Online: a guest click that raced the host's auto-prime arrives as
+	# "unleash" and must release, not vanish.
+	p.mana = p.max_mana
+	p.begin_chant(0)
+	for ch in incant:
+		p.chant_key(ch)
+	await get_tree().create_timer(p.typed_charge_time() + 0.1, false).timeout
+	_last_spell = null
+	RemoteInputDriver.apply(p, {"action": "unleash", "aim": main.enemy.global_position})
+	_check("host treats a late 'unleash' on a primed wizard as release", p.primed_slot < 0 and _last_spell != null)
 	p.mana = p.max_mana
 	p.begin_chant(0)
 	for ch in incant:
