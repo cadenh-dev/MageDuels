@@ -499,7 +499,8 @@ func _load_master_volume() -> void:
 
 
 func _apply_master_db(db: float) -> void:
-	_master_db = clampf(db, -40.0, 6.0)
+	# -80 dB is the mute position used by the volume slider's 0% step.
+	_master_db = clampf(db, -80.0, 6.0)
 	AudioServer.set_bus_volume_db(0, _master_db)
 	var game := _game()
 	if game != null:

@@ -1,6 +1,8 @@
 class_name DuelHUD
 extends CanvasLayer
 
+const VolumeSliderRow := preload("res://scripts/ui/volume_slider.gd")
+
 signal pause_resume
 signal pause_quit
 var online := false
@@ -526,19 +528,9 @@ func _build_pause() -> void:
 	title.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
 	box.add_child(title)
 
-	var audio := get_node_or_null("/root/Audio")
-	if audio != null:
-		var vol_label := UIKit.label("MASTER VOLUME", 11, UIKit.MUTED)
-		vol_label.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
-		box.add_child(vol_label)
-		var slider := HSlider.new()
-		slider.min_value = -30.0
-		slider.max_value = 0.0
-		slider.step = 1.0
-		slider.value = float(audio.get_master_volume_db())
-		slider.custom_minimum_size = Vector2(280, 18)
-		slider.value_changed.connect(func(v: float) -> void: audio.set_master_volume_db(v))
-		box.add_child(slider)
+	var volume := VolumeSliderRow.new()
+	volume.custom_minimum_size = Vector2(280, 22)
+	box.add_child(volume)
 
 	var resume := UIKit.button("RESUME", 22)
 	resume.pressed.connect(func() -> void: pause_resume.emit())

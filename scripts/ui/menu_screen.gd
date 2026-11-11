@@ -1,6 +1,8 @@
 class_name MenuScreen
 extends Control
 
+const VolumeSliderRow := preload("res://scripts/ui/volume_slider.gd")
+
 signal play_pressed
 signal how_pressed
 signal quit_pressed
@@ -79,6 +81,10 @@ func _ready() -> void:
 	)
 	cast_mode_button.text = "CAST MODE: %s" % ("CHANT ONLY" if Game.cast_mode == Game.CAST_CHANT else "CLASSIC")
 	box.add_child(cast_mode_button)
+
+	var volume := VolumeSliderRow.new()
+	volume.custom_minimum_size = Vector2(470, 22)
+	box.add_child(volume)
 
 	if not OS.has_feature("web"):
 		var quit := UIKit.ghost_button("QUIT", 17)
