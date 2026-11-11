@@ -25,7 +25,7 @@ func _init() -> void:
 	_slider.min_value = 0.0
 	_slider.max_value = 100.0
 	_slider.step = 1.0
-	_slider.custom_minimum_size = Vector2(200, 18)
+	_slider.custom_minimum_size = Vector2(120, 18)
 	_slider.size_flags_horizontal = Control.SIZE_EXPAND_FILL
 	_slider.focus_mode = Control.FOCUS_ALL
 	_slider.tooltip_text = "Master volume"
